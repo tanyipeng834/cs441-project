@@ -14,7 +14,7 @@ class Node:
         self.port = port
         self.network = network
 
-        # Create a listening socket
+        
         self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         try:
             # Allow reusing the address to avoid "Address already in use" in quick restarts
@@ -59,12 +59,12 @@ class Node:
         
             port = Node.BASE_PORT + 3 + int(mac_address[-1])
         else:
-            # Normal node addresses: 'N1', 'N2', etc.
+           
             port = Node.BASE_PORT + int(mac_address[-1])
         return port
 
     def listen_for_frames(self):
-        """ Continuously accept connections while is_running is True. """
+       
         while self.is_running:
             try:
                 conn, addr = self.sock.accept()
@@ -83,7 +83,7 @@ class Node:
                 print("Error in listen_for_frames:")
                 traceback.print_exc()
 
-        print(f"Node {self.mac_address} is no longer listening on port {self.port}.")
+    
 
     def process_frame(self, frame):
    
