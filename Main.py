@@ -1,6 +1,9 @@
 from Node import Node
 from Network import Network 
 class Main:
+
+
+
    
 
  
@@ -20,7 +23,7 @@ class Main:
         lan_2.add_node(router_interface_2)
         lan_2.add_node(node3)
         node2.send_frame('N3','Hello World, Coming from N2')
-
+        
 
 
 

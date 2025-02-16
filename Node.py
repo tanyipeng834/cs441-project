@@ -3,6 +3,7 @@ import threading
 import sys
 from EthernetFrame import EthernetFrame
 import traceback
+import time
 class Node:
     MAX_DATA_LENGTH = 256
     HOST_IP = '127.0.0.1'
@@ -12,6 +13,7 @@ class Node:
         self.port = port
         self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         try:
+            self.sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
             self.sock.bind((Node.HOST_IP, self.port))
             self.sock.listen(1)
         except socket.error as e:
@@ -29,10 +31,13 @@ class Node:
             
             # Skip if it is the same node as itself, as we do not want to send 
             # to ourselves
+
+            
             if node == self:
+                
                 continue
             else:
-                
+                time.sleep(0.5)
                 destination_port = self.process_node_mac(node.mac_address)
                 with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
                     s.connect((Node.HOST_IP, destination_port))
