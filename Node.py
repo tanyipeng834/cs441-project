@@ -1,30 +1,51 @@
 import socket
 import threading
 import sys
-import traceback
 from EthernetFrame import EthernetFrame
-from IPPacket import IPPacket, IP_ADDRESSES
+from IPPacket import IPPacket
+import traceback
 
 class Node:
     MAX_DATA_LENGTH = 256
     HOST_IP = '127.0.0.1'
     BASE_PORT = 50000
 
-    def __init__(self, mac_address, port, network):
+    # IP address mapping
+    MAC_TO_IP = {
+        "N1": 0x1A,
+        "N2": 0x2A,
+        "N3": 0x2B,
+        "R1": 0x11,
+        "R2": 0x21
+    }
 
-        # Basic node properties
+    # IP to MAC address mapping
+    IP_TO_MAC = {
+        0x1A: "N1",
+        0x2A: "N2",
+        0x2B: "N3",
+        0x11: "R1",
+        0x21: "R2"
+    }
+
+    # Routing table for each node
+    ROUTING_TABLE = {
+        "N1": {0x2A: 0x11, 0x2B: 0x11},  # Route to LAN2 via R1
+        "N2": {0x1A: 0x21},              # Route to LAN1 via R2
+        "N3": {0x1A: 0x21},              # Route to LAN1 via R2
+        "R1": {0x2A: 0x21, 0x2B: 0x21},  # Route to LAN2 via R2
+        "R2": {0x1A: 0x11}               # Route to LAN1 via R1
+    }
+
+    def __init__(self, mac_address, port, network):
         self.mac_address = mac_address
         self.port = port
         self.network = network
+        self.ip_address = self.MAC_TO_IP.get(mac_address)
+        self.is_router = mac_address.startswith('R')
 
-        # IP configuration
-        self.ip_address = IP_ADDRESSES[mac_address]
-        self.router_interface = 'R1' if mac_address == 'N1' else 'R2'
-
-        # Socket setup
         self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         try:
-            # Allow reusing the address to avoid "Address already in use" in quick restarts
             self.sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
             self.sock.bind((Node.HOST_IP, self.port))
             self.sock.listen(1)
@@ -34,24 +55,35 @@ class Node:
 
         print(f"Node {self.mac_address} started on port {self.port}.")
 
-        # Flag to control the listening loop
         self.is_running = True
-
-        # Start a non-daemon thread to listen for incoming frames
         self.listen_thread = threading.Thread(target=self.listen_for_frames)
         self.listen_thread.start()
 
     def get_next_hop(self, destination_ip):
-        """Determine next hop for IP packets"""
-        return self.router_interface
-    
+        """
+        Get next hop IP address for the destination
+        """
+        if destination_ip == self.ip_address:
+            return None  # Packet for this node
+        
+        # Check routing table
+        if self.mac_address in self.ROUTING_TABLE:
+            next_hop = self.ROUTING_TABLE[self.mac_address].get(destination_ip)
+            if next_hop is not None:
+                return next_hop
+        
+        # If we're a router, check if destination is directly connected
+        if self.is_router:
+            if destination_ip in self.IP_TO_MAC:
+                return destination_ip
+                
+        return None
+
     def send_frame(self, destination, data):
         """
         Send a frame to all other nodes in the same network (Ethernet broadcast).
-        Each node that receives it decides if it is the intended recipient or not.
         """
         for node in self.network.nodes:
-            # Skip sending to itself
             if node == self:
                 continue
 
@@ -65,48 +97,44 @@ class Node:
                 print(f"Error sending frame from {self.mac_address} to {destination_port}: {e}")
 
     def send_ip_packet(self, destination_ip, protocol, data):
-        """Send an IP packet to the specified destination"""
+        """
+        Create and send an IP packet with routing
+        """
         # Create IP packet
         ip_packet = IPPacket(self.ip_address, destination_ip, protocol, data)
         
-        # Get next hop MAC address
-        next_hop_mac = self.get_next_hop(destination_ip)
+        # Get next hop from routing table
+        next_hop = self.get_next_hop(destination_ip)
         
-        # Encapsulate in Ethernet frame and send
-        self.send_frame(next_hop_mac, ip_packet.encode())
-        print(f"Node {self.mac_address} sent IP packet to {hex(destination_ip)}")
-    
-    def send_ping(self, destination_ip):
-        """Send a ping packet to the specified IP address"""
-        self.send_ip_packet(
-            destination_ip,
-            0,  # Protocol 0 for ping
-            f"PING from {self.mac_address}"
-        )
-        print(f"Node {self.mac_address} sent ping to {hex(destination_ip)}")
+        if next_hop is None and destination_ip in self.IP_TO_MAC:
+            # Direct delivery
+            destination_mac = self.IP_TO_MAC[destination_ip]
+            self.send_frame(destination_mac, ip_packet.encode())
+        elif next_hop is not None:
+            # Forward to next hop
+            next_hop_mac = self.IP_TO_MAC[next_hop]
+            self.send_frame(next_hop_mac, ip_packet.encode())
+        else:
+            print(f"No route to host {hex(destination_ip)}")
 
     def process_node_mac(self, mac_address):
-        """Convert MAC address to port number"""
         if mac_address[-2] == 'R':
-        
             port = Node.BASE_PORT + 3 + int(mac_address[-1])
         else:
             port = Node.BASE_PORT + int(mac_address[-1])
         return port
 
     def listen_for_frames(self):
-        """Listen for incoming Ethernet frames"""
         while self.is_running:
             try:
                 conn, addr = self.sock.accept()
                 with conn:
                     raw_data = conn.recv(2 + 2 + 1 + Node.MAX_DATA_LENGTH)
                     if not raw_data:
-                        continue  # Connection closed or no data
+                        continue
                     frame = raw_data.decode('utf-8')
                     self.process_frame(frame)
             except OSError:
-                # This can happen if the socket is closed while waiting for accept()
                 if self.is_running:
                     print(f"Node {self.mac_address} socket accept() error.")
                 break
@@ -115,7 +143,9 @@ class Node:
                 traceback.print_exc()
 
     def process_frame(self, frame):
-        """Process received Ethernet frame and handle encapsulated IP packets"""
+        """
+        Process received Ethernet frame with routing support
+        """
         if len(frame) < 5:
             print(f"Node {self.mac_address} received invalid frame: {frame}")
             return
@@ -123,48 +153,71 @@ class Node:
         source = frame[0:2]
         destination = frame[2:4]
         data_length = ord(frame[4:5])
-        data = frame[5:5 + data_length] # This is the IP packet in bytes
+        data = frame[5:5 + data_length]
 
         if destination == self.mac_address:
-            print(f"Node {self.mac_address} received data from {source}: {data}")
-
+            # Try to decode as IP packet only if it looks like one
             try:
-                # If data is a string, convert to bytes
-                if isinstance(data, str):
-                    data = data.encode('utf-8')
+                # Check for valid IP packet format
+                if len(data) >= 4:
+                    source_ip = ord(data[0])
+                    dest_ip = ord(data[1])
+                    protocol = ord(data[2])
                     
-                # Decode IP packet
-                ip_packet = IPPacket.decode(data)
+                    # Only process as IP if source and dest are valid IP addresses
+                    if source_ip in self.IP_TO_MAC and dest_ip in self.IP_TO_MAC:
+                        ip_packet = IPPacket.decode(data)
+                        if ip_packet:
+                            self.process_ip_packet(ip_packet)
+                            return
+            except Exception:
+                pass  # Not an IP packet
                 
-                # Process if packet is for this node
-                if ip_packet.destination == self.ip_address:
-                    print(f"Node {self.mac_address} received IP packet from {hex(ip_packet.source)}")
-                    
-                    # Handle ping protocol
-                    if ip_packet.protocol == 0:  # Ping protocol
-                        print(f"Received ping: {ip_packet.data}")
-                        # Send ping reply
-                        self.send_ip_packet(
-                            ip_packet.source,
-                            0,  # Ping protocol
-                            f"PING reply from {self.mac_address}"
-                        )
-                
-            except Exception as e:
-                print(f"Error processing IP packet: {e}")
-                traceback.print_exc()
+            # Process as regular Ethernet data
+            print(f"Node {self.mac_address} received data from {source}: {data}")
         else:
             print(f"Node {self.mac_address} dropped frame from {source} intended for {destination}")
 
+    def process_ip_packet(self, packet):
+        """
+        Process received IP packet with routing support
+        """
+        print(f"Processing IP packet: src={hex(packet.source)}, dst={hex(packet.destination)}")
+        
+        if packet.destination == self.ip_address:
+            # Handle packet intended for this node
+            if packet.protocol == IPPacket.PROTOCOL_PING:
+                if packet.data.startswith("REPLY:"):
+                    print(f"Node {self.mac_address} received ping reply: {packet.data}")
+                else:
+                    print(f"Node {self.mac_address} received ping request: {packet.data}")
+                    reply_data = f"REPLY: {packet.data}"
+                    self.send_ip_packet(packet.source, IPPacket.PROTOCOL_PING, reply_data)
+        elif self.is_router:
+            # Router should forward the packet
+            print(f"Router {self.mac_address} forwarding packet: {hex(packet.source)} -> {hex(packet.destination)}")
+            next_hop = self.get_next_hop(packet.destination)
+            if next_hop:
+                next_hop_mac = self.IP_TO_MAC[next_hop]
+                self.send_frame(next_hop_mac, packet.encode())
+            else:
+                print(f"Router {self.mac_address} has no route to {hex(packet.destination)}")
+        else:
+            print(f"Node {self.mac_address} dropping IP packet intended for {hex(packet.destination)}")
+
+    def ping(self, destination_ip, message="PING"):
+        """
+        Send a ping to the specified IP address
+        """
+        print(f"Node {self.mac_address} pinging {hex(destination_ip)}: {message}")
+        self.send_ip_packet(destination_ip, IPPacket.PROTOCOL_PING, message)
+
     def shutdown(self):
-        """Cleanly shutdown the node"""
         self.is_running = False
         try:
             self.sock.close()
         except Exception as e:
             print(f"Error closing socket on port {self.port}: {e}")
 
-        # Join the listening thread to ensure it finishes
         if self.listen_thread.is_alive():
             self.listen_thread.join()
-

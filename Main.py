@@ -1,28 +1,24 @@
 from Node import Node
 from Network import Network
 import time
-from IPPacket import IP_ADDRESSES
 
 class Main:
     def __init__(self):
         """
-        Initialize the networks and nodes.
-        Two networks:
-        - LAN1: Node1 (0x1A) and Router interface R1 (0x11)
-        - LAN2: Node2 (0x2A), Node3 (0x2B), and Router interface R2 (0x21)
+        Initialize the networks and nodes, and add the nodes to the corresponding networks.
         """
         # Create two LAN networks
         self.lan_1 = Network()
         self.lan_2 = Network()
         
-       # Create nodes
+       
         self.node1 = Node('N1', 50001, self.lan_1)
         self.node2 = Node('N2', 50002, self.lan_2)
         self.node3 = Node('N3', 50003, self.lan_2)
         self.router_interface_1 = Node('R1', 50004, self.lan_1)
         self.router_interface_2 = Node('R2', 50005, self.lan_2)
         
-        # Add nodes to networks
+      
         self.lan_1.add_node(self.node1)
         self.lan_1.add_node(self.router_interface_1)
         
@@ -30,75 +26,43 @@ class Main:
         self.lan_2.add_node(self.router_interface_2)
         self.lan_2.add_node(self.node3)
 
-    def test_ethernet(self):
-        """Test basic Ethernet communication"""
-        print("\n=== Testing Ethernet Communication ===")
-        print("Test 1: Node2 sending to Node3 (same network)")
-        self.node2.send_frame('N3', "Hello N3, this is N2")
-        time.sleep(1)
-
-        print("\nTest 2: Node1 sending to R1 (same network)")
-        self.node1.send_frame('R1', "Hello R1, this is N1")
-        time.sleep(1)
-
-    def test_ping(self):
-        """Test IP ping protocol"""
-        print("\n=== Testing Ping Protocol ===")
+    def run(self):
+       
+        print("\n" + "="*50)
+        print("TEST 1: ETHERNET FRAME COMMUNICATION")
+        print("Description: Testing basic Ethernet frame sending between nodes in same LAN")
+        print("Expected: Node2 sends frame to Node3, Node3 receives, others drop")
+        print("="*50 + "\n")
+        self.node2.send_frame('N3', 'Hello World, Coming from N2')
+        time.sleep(2)  # Allow time for processing
         
-        print("\nTest 1: Ping within same network (Node2 -> Node3)")
-        print(f"Sending ping from {hex(IP_ADDRESSES['N2'])} to {hex(IP_ADDRESSES['N3'])}")
-        self.node2.send_ping(IP_ADDRESSES['N3'])
-        time.sleep(1)
-
-        print("\nTest 2: Ping across networks (Node1 -> Node2)")
-        print(f"Sending ping from {hex(IP_ADDRESSES['N1'])} to {hex(IP_ADDRESSES['N2'])}")
-        self.node1.send_ping(IP_ADDRESSES['N2'])
-        time.sleep(1)
+        print("\n" + "="*50)
+        print("TEST 2: IP PING - SAME LAN")
+        print("Description: Testing IP ping between nodes in the same LAN")
+        print("Expected: Node2 pings Node3, Node3 replies, others drop packets")
+        print("="*50 + "\n")
+        # Single ping from Node2 to Node3
+        self.node2.ping(0x2B, "Hello Node3 from Node2 via IP")
+        time.sleep(2)  # Allow time for response
         
-    def test_multiple_pings(self):
-        """Test multiple pings in sequence"""
-        print("\n=== Testing Multiple Pings ===")
+        print("\n" + "="*50)
+        print("TEST 3: IP PING - CROSS LAN")
+        print("Description: Testing IP ping between nodes in different LANs")
+        print("Expected: Node1 pings Node2 through router interfaces")
+        print("="*50)
+        self.node1.ping(0x2A, "Hello Node2 from Node1 via IP")
+        time.sleep(1)  # Allow time for response
         
-        # Node1 pings everyone
-        print("\nNode1 pinging all other nodes:")
-        self.node1.send_ping(IP_ADDRESSES['N2'])
-        time.sleep(0.5)
-        self.node1.send_ping(IP_ADDRESSES['N3'])
-        time.sleep(0.5)
-
-        # Node2 pings everyone
-        print("\nNode2 pinging all other nodes:")
-        self.node2.send_ping(IP_ADDRESSES['N1'])
-        time.sleep(0.5)
-        self.node2.send_ping(IP_ADDRESSES['N3'])
-        time.sleep(0.5)
-
-    def run_tests(self):
-        """Run all tests"""
-        try:
-            # Give time for all nodes to start up
-            time.sleep(1)
-            
-            # Run tests
-            self.test_ethernet()
-            time.sleep(1)
-            
-            self.test_ping()
-            time.sleep(1)
-            
-            self.test_multiple_pings()
-            time.sleep(1)
-
-        except Exception as e:
-            print(f"Error during tests: {e}")
-        finally:
-            # Give time for last messages to be processed
-            time.sleep(2)
-            self.shutdown()
+        print("\n" + "="*50)
+        print("TEST 4: BROADCAST TEST")
+        print("Description: Testing that frames are properly broadcast within LANs")
+        print("Expected: All nodes in LAN2 should receive the frame")
+        print("="*50)
+        self.node2.send_frame('N3', 'Broadcast test from Node2')
+        time.sleep(1)  # Allow time for processing
 
     def shutdown(self):
-        """Shutdown all nodes"""
-        print("\n=== Shutting down all nodes ===")
+      
         self.node1.shutdown()
         self.node2.shutdown()
         self.node3.shutdown()
@@ -106,5 +70,11 @@ class Main:
         self.router_interface_2.shutdown()
 
 if __name__ == "__main__":
+    
     main_app = Main()
-    main_app.run_tests()
+    
+   
+    main_app.run()
+    
+  
+    main_app.shutdown()
