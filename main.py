@@ -1,5 +1,5 @@
-from Node import Node
-from Network import Network
+from node import Node
+from network import Network
 
 
 class Main:

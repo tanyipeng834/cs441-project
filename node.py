@@ -1,7 +1,7 @@
 import socket
 import threading
 import sys
-from EthernetFrame import EthernetFrame
+from ethernet_frame import EthernetFrame
 import traceback
 
 
