@@ -2,7 +2,7 @@ from node import Node
 from network import Network
 
 
-class Main:
+class NetworkEmulator:
     def __init__(self):
         """
         Initialize the networks and nodes, and add the nodes to the corresponding networks.
@@ -25,11 +25,9 @@ class Main:
         self.lan_2.add_node(self.node3)
 
     def run(self):
-
         self.node2.send_frame("N3", "Hello World, Coming from N2")
 
     def shutdown(self):
-
         self.node1.shutdown()
         self.node2.shutdown()
         self.node3.shutdown()
@@ -38,9 +36,8 @@ class Main:
 
 
 if __name__ == "__main__":
+    emulator = NetworkEmulator()
 
-    main_app = Main()
+    emulator.run()
 
-    main_app.run()
-
-    main_app.shutdown()
+    emulator.shutdown()
