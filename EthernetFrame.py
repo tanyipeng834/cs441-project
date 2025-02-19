@@ -7,4 +7,4 @@ class EthernetFrame:
 
     def encode(self):
         frame = f"{self.source}{self.destination}{chr(len(self.data))}{self.data}"
-        return frame.encode('utf-8')
+        return frame.encode("utf-8")
