@@ -1,6 +1,5 @@
 from Node import Node
 from Network import Network
-import time
 
 class Main:
     def __init__(self):
@@ -28,38 +27,7 @@ class Main:
 
     def run(self):
        
-        print("\n" + "="*50)
-        print("TEST 1: ETHERNET FRAME COMMUNICATION")
-        print("Description: Testing basic Ethernet frame sending between nodes in same LAN")
-        print("Expected: Node2 sends frame to Node3, Node3 receives, others drop")
-        print("="*50 + "\n")
         self.node2.send_frame('N3', 'Hello World, Coming from N2')
-        time.sleep(2)  # Allow time for processing
-        
-        print("\n" + "="*50)
-        print("TEST 2: IP PING - SAME LAN")
-        print("Description: Testing IP ping between nodes in the same LAN")
-        print("Expected: Node2 pings Node3, Node3 replies, others drop packets")
-        print("="*50 + "\n")
-        # Single ping from Node2 to Node3
-        self.node2.ping(0x2B, "Hello Node3 from Node2 via IP")
-        time.sleep(2)  # Allow time for response
-        
-        print("\n" + "="*50)
-        print("TEST 3: IP PING - CROSS LAN")
-        print("Description: Testing IP ping between nodes in different LANs")
-        print("Expected: Node1 pings Node2 through router interfaces")
-        print("="*50)
-        self.node1.ping(0x2A, "Hello Node2 from Node1 via IP")
-        time.sleep(1)  # Allow time for response
-        
-        print("\n" + "="*50)
-        print("TEST 4: BROADCAST TEST")
-        print("Description: Testing that frames are properly broadcast within LANs")
-        print("Expected: All nodes in LAN2 should receive the frame")
-        print("="*50)
-        self.node2.send_frame('N3', 'Broadcast test from Node2')
-        time.sleep(1)  # Allow time for processing
 
     def shutdown(self):
       
