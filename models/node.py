@@ -1,26 +1,25 @@
 import socket
 import threading
 import sys
-from ethernet_frame import EthernetFrame
 import traceback
-import atexit
+from .ethernet_frame import EthernetFrame
 
 
 class Node:
     MAX_DATA_LENGTH = 256
     HOST_IP = "127.0.0.1"
-    BASE_PORT=50000
-    
-    def __init__(self, mac_address, port):
+    BASE_PORT = 50000
+    VALID_DESTINATION = ["N1", "N2", "N3", "R1", "R2"]
+
+    def __init__(self, mac_address, port, network):
         self.mac_address = mac_address
         self.port = port
-        self. router_interfaces = {
-    "R1": ["N1"],
-    "R2": ["N2", "N3"]
-}
+        self.network = network
+
         self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         try:
-            # Allow reusing the address to avoid "Address already in use" in quick restarts
+            # Allow reusing the address to avoid
+            # "Address already in use" in quick restarts
             self.sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
             self.sock.bind((Node.HOST_IP, self.port))
             self.sock.listen(1)
@@ -37,15 +36,15 @@ class Node:
         self.listen_thread = threading.Thread(target=self.listen_for_frames)
         self.listen_thread.start()
 
-    def send_frame(self, destination,data,interface):
+    def send_frame(self, destination, data):
         """
         Send a frame to all other nodes in the same network (Ethernet broadcast).
         Each node that receives it decides if it is the intended recipient or not.
         """
-        for node in self.router_interfaces[interface]:
+        for node in self.network:
             # Skip sending to itself
 
-            destination_port = self.process_node_mac(node.mac_address)
+            destination_port = self.process_node_mac(node)
             try:
                 with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
                     s.connect((Node.HOST_IP, destination_port))
@@ -60,7 +59,7 @@ class Node:
 
         if mac_address[-2] == "R":
 
-            port = 50004
+            port = Node.BASE_PORT + 3 + int(mac_address[-1])
         else:
 
             port = Node.BASE_PORT + int(mac_address[-1])
@@ -82,7 +81,7 @@ class Node:
                 if self.is_running:
                     print(f"Node {self.mac_address} socket accept() error.")
                 break
-            except Exception as e:
+            except Exception:
                 print("Error in listen_for_frames:")
                 traceback.print_exc()
 
@@ -96,14 +95,12 @@ class Node:
         destination = frame[2:4]
         data_length = ord(frame[4:5])
         data = frame[5 : 5 + data_length]
-        print(source)
-        print(destination)
 
-        if destination in self.router_interfaces:
-            print(f"Router received data on interface {destination} from {source}: {data}")
+        if destination == self.mac_address:
+            print(f"Node {self.mac_address} received data from {source}: {data}")
         else:
             print(
-                f"Router dropped frame from {source} intended for {destination}"
+                f"Node {self.mac_address} dropped frame from {source} intended for {destination}"
             )
 
     def shutdown(self):
@@ -117,8 +114,3 @@ class Node:
         # Join the listening thread to ensure it finishes
         if self.listen_thread.is_alive():
             self.listen_thread.join()
-if __name__ == "__main__":
-    router = Node("R",50004)
-    atexit.register(node.shutdown)
-    
-
