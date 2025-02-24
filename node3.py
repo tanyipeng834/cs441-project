@@ -3,16 +3,19 @@ import threading
 import sys
 from ethernet_frame import EthernetFrame
 import traceback
+import atexit
 
 
 class Node:
     MAX_DATA_LENGTH = 256
     HOST_IP = "127.0.0.1"
+    BASE_PORT = 50000
+    VALID_DESTINATION =["N1","N2","N3","R1","R2"]
     
     def __init__(self, mac_address, port):
         self.mac_address = mac_address
         self.port = port
-        self.network = ["N2,N3,R2"]
+        self.network = ["N2","R2"]
 
         self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         try:
@@ -41,7 +44,7 @@ class Node:
         for node in self.network:
             # Skip sending to itself
 
-            destination_port = self.process_node_mac(node.mac_address)
+            destination_port = self.process_node_mac(node)
             try:
                 with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
                     s.connect((Node.HOST_IP, destination_port))
@@ -112,5 +115,37 @@ class Node:
         if self.listen_thread.is_alive():
             self.listen_thread.join()
 if __name__ == "__main__":
-    node1 = Node("N3",5003)
+    node = Node("N3", 50003)
+    # Register the shutdown function to ensure cleanup on exit.
+    atexit.register(node.shutdown)
+    
+    print("Please input your destination and data as two separate arguments.")
+    print("Input 'q' to exit.")
+
+    try:
+        while True:
+            user_input = input(">> ").strip()
+            if user_input.lower() == "q":
+                print("Exiting...")
+                break
+            if not user_input:
+                continue
+
+            parts = user_input.split(" ", 1)
+            if len(parts) != 2:
+                print("Invalid input. Please provide both destination and data.")
+                continue
+
+            destination, data = parts
+            if destination not in Node.VALID_DESTINATION:
+                print("Invalid input. Please provide a valid destination")
+                continue
+
+            node.send_frame(destination, data)
+            print(f"Packet sent to {destination} with data: {data}")
+    except KeyboardInterrupt:
+        print("\nKeyboardInterrupt received. Exiting...")
+    finally:
+        node.shutdown()
+        sys.exit(0)
 

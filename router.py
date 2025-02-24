@@ -3,21 +3,21 @@ import threading
 import sys
 from ethernet_frame import EthernetFrame
 import traceback
+import atexit
 
 
 class Node:
     MAX_DATA_LENGTH = 256
     HOST_IP = "127.0.0.1"
+    BASE_PORT=50000
     
     def __init__(self, mac_address, port):
         self.mac_address = mac_address
         self.port = port
         self. router_interfaces = {
-    "router_interface_1": ["N1"],
-    "router_interface_2": ["N2", "N3"]
+    "R1": ["N1"],
+    "R2": ["N2", "N3"]
 }
-
-
         self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         try:
             # Allow reusing the address to avoid "Address already in use" in quick restarts
@@ -60,7 +60,7 @@ class Node:
 
         if mac_address[-2] == "R":
 
-            port = 5004
+            port = 50004
         else:
 
             port = Node.BASE_PORT + int(mac_address[-1])
@@ -96,9 +96,11 @@ class Node:
         destination = frame[2:4]
         data_length = ord(frame[4:5])
         data = frame[5 : 5 + data_length]
+        print(source)
+        print(destination)
 
-        if destination in self.mac_address:
-            print(f"Node {destination} received data from {source}: {data}")
+        if destination in self.router_interfaces:
+            print(f"Router received data on interface {destination} from {source}: {data}")
         else:
             print(
                 f"Router dropped frame from {source} intended for {destination}"
@@ -117,5 +119,6 @@ class Node:
             self.listen_thread.join()
 if __name__ == "__main__":
     router = Node("R",50004)
+    atexit.register(node.shutdown)
     
 
