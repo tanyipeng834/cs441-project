@@ -8,12 +8,11 @@ import traceback
 class Node:
     MAX_DATA_LENGTH = 256
     HOST_IP = "127.0.0.1"
-    BASE_PORT = 50000
-
-    def __init__(self, mac_address, port, network):
+    
+    def __init__(self, mac_address, port):
         self.mac_address = mac_address
         self.port = port
-        self.network = network
+        self.network = ["N2,N3,R2"]
 
         self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         try:
@@ -39,10 +38,8 @@ class Node:
         Send a frame to all other nodes in the same network (Ethernet broadcast).
         Each node that receives it decides if it is the intended recipient or not.
         """
-        for node in self.network.nodes:
+        for node in self.network:
             # Skip sending to itself
-            if node == self:
-                continue
 
             destination_port = self.process_node_mac(node.mac_address)
             try:
@@ -59,7 +56,7 @@ class Node:
 
         if mac_address[-2] == "R":
 
-            port = Node.BASE_PORT + 3 + int(mac_address[-1])
+            port = 50004
         else:
 
             port = Node.BASE_PORT + int(mac_address[-1])
@@ -114,3 +111,6 @@ class Node:
         # Join the listening thread to ensure it finishes
         if self.listen_thread.is_alive():
             self.listen_thread.join()
+if __name__ == "__main__":
+    node1 = Node("N3",5003)
+
