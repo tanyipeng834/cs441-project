@@ -5,12 +5,13 @@ import traceback
 from .ethernet_frame import EthernetFrame
 from .ip_packet import IPPacket
 
+
 class Node:
     MAX_DATA_LENGTH = 256
     HOST_IP = "127.0.0.1"
     BASE_PORT = 50000
     VALID_DESTINATION = ["N1", "N2", "N3", "R1", "R2"]
-    
+
     # Protocol constant
     PROTOCOL_PING = 0
 
@@ -20,10 +21,10 @@ class Node:
         self.port = port
         self.network = network
         self.default_gateway = default_gateway  # MAC address of default gateway
-        
+
         # ARP Table: Maps IP addresses to MAC addresses
         self.arp_table = {}
-        
+
         self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         try:
             # Allow reusing the address to avoid
@@ -35,7 +36,9 @@ class Node:
             print(f"Error starting node on port {self.port}: {e}")
             sys.exit(1)
 
-        print(f"Node {self.mac_address} (IP: 0x{self.ip_address:02X}) started on port {self.port}.")
+        print(
+            f"Node {self.mac_address} (IP: 0x{self.ip_address:02X}) started on port {self.port}."
+        )
 
         # Flag to control the listening loop
         self.is_running = True
@@ -58,7 +61,7 @@ class Node:
         """
         Send an Ethernet frame to all other nodes in the same network (Ethernet broadcast).
         Each node that receives it decides if it is the intended recipient or not.
-        
+
         Args:
             destination_mac: MAC address of destination (2 characters)
             data: data to send in the frame
@@ -79,7 +82,7 @@ class Node:
     def send_ip_packet(self, destination_ip, protocol, data):
         """
         Send an IP packet by encapsulating it in an Ethernet frame
-        
+
         Args:
             destination_ip: IP address of destination (hex value)
             protocol: Protocol identifier (e.g., PROTOCOL_PING)
@@ -88,12 +91,14 @@ class Node:
         # Create the IP packet
         ip_packet = IPPacket(self.ip_address, destination_ip, protocol, data)
         packet_data = ip_packet.encode()
-        
+
         # Determine the MAC address to send to (either direct or via gateway)
         destination_mac = self.get_mac_for_ip(destination_ip)
-        
+
         if destination_mac:
-            print(f"Sending IP packet to 0x{destination_ip:02X} via MAC {destination_mac}")
+            print(
+                f"Sending IP packet to 0x{destination_ip:02X} via MAC {destination_mac}"
+            )
             self.send_frame(destination_mac, packet_data)
         else:
             print(f"No route to host 0x{destination_ip:02X}")
@@ -137,11 +142,11 @@ class Node:
         source_mac = frame[0:2]
         destination_mac = frame[2:4]
         data_length = ord(frame[4:5])
-        data = frame[5:5 + data_length]
+        data = frame[5 : 5 + data_length]
 
         if destination_mac == self.mac_address:
             print(f"Node {self.mac_address} received Ethernet frame from {source_mac}")
-            
+
             # Check if it contains an IP packet (at least 4 bytes for IP header)
             if len(data) >= 4:
                 try:
@@ -159,11 +164,13 @@ class Node:
     def process_ip_packet(self, ip_packet, source_mac):
         """Process a received IP packet"""
         # No ARP table updates for this simplified project
-        
+
         if ip_packet.dest_ip == self.ip_address:
-            print(f"  Received IP packet from 0x{ip_packet.source_ip:02X} to 0x{ip_packet.dest_ip:02X}")
+            print(
+                f"  Received IP packet from 0x{ip_packet.source_ip:02X} to 0x{ip_packet.dest_ip:02X}"
+            )
             print(f"  Protocol: {ip_packet.protocol}, Data: {ip_packet.data}")
-            
+
             # Handle ping protocol
             # if ip_packet.protocol == Node.PROTOCOL_PING:
             #     # Check if the data already contains "REPLY:" to prevent infinite loop
