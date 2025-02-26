@@ -128,7 +128,7 @@ class Node:
         # Send the ICMP packet encapsulated in an IP packet
         self.send_ip_packet(
             destination_ip=destination_ip,
-            protocol=self.PROTOCOL_ICMP,
+            protocol=ICMPPacket.PROTOCOL,
             data=icmp_packet.encode(),
         )
 
@@ -233,7 +233,7 @@ class Node:
         else:
             print(f"  Dropped IP packet intended for 0x{ip_packet.dest_ip:02X}")
 
-    def handle_icmp_packet(self, ip_packet):
+    def handle_icmp_packet(self, ip_packet: IPPacket):
         """Handle ICMP packets"""
         try:
             icmp_packet = ICMPPacket.decode(ip_packet.data)
@@ -251,7 +251,7 @@ class Node:
 
                 self.send_ip_packet(
                     destination_ip=ip_packet.source_ip,
-                    protocol=self.PROTOCOL_ICMP,
+                    protocol=ICMPPacket.PROTOCOL,
                     data=reply.encode(),
                 )
 
@@ -300,6 +300,9 @@ class Node:
         print("Available commands:")
         print("  <destination> <message> - Send raw Ethernet frame (original format)")
         print("  ping <ip_hex> <message> - Send a ping to the specified IP")
+        print(
+            "  pingicmp <ip_hex> - Send a ping with default message 'PING' using ICMP"
+        )
         print("  arp - Display the ARP table")
         print("  help - Show this help message")
         print("  q - Exit")
@@ -317,14 +320,14 @@ class Node:
                 if not user_input:
                     continue
                 if user_input.lower() == "help":
-                    self.display_help()  # Fixed: removed node_id parameter
+                    self.display_help()
                     continue
 
                 parts = user_input.split(" ", 1)
 
                 if parts[0].lower() == "ping":
                     if len(parts) < 2:
-                        print("Invalid input. Usage: ping <ip_hex> <message>")
+                        print("Invalid input. Usage: ping <ip_hex>")
                         continue
 
                     ping_parts = parts[1].split(" ", 1)
@@ -340,6 +343,22 @@ class Node:
                         # Send ping packet
                         self.send_ip_packet(dest_ip, IPPacket.PROTOCOL, message)
                         print(f"Ping sent to 0x{dest_ip:02X} with message: {message}")
+                    except ValueError:
+                        print(
+                            "Invalid IP address. Please enter a valid hex value (e.g., 2A)"
+                        )
+
+                if parts[0].lower() == "pingicmp":
+                    if len(parts) < 2:
+                        print("Invalid input. Usage: pingicmp <ip_hex>")
+                        continue
+
+                    try:
+                        # Convert hex string to integer
+                        dest_ip = int(parts[1], 16)
+
+                        # Send ICMP ping packet
+                        self.send_icmp_echo(dest_ip)
                     except ValueError:
                         print(
                             "Invalid IP address. Please enter a valid hex value (e.g., 2A)"
