@@ -4,6 +4,7 @@ import sys
 import traceback
 from .ethernet_frame import EthernetFrame
 from .ip_packet import IPPacket
+from .icmp_packet import ICMPPacket
 
 
 class Node:
@@ -11,9 +12,6 @@ class Node:
     HOST_IP = "127.0.0.1"
     BASE_PORT = 50000
     VALID_DESTINATION = ["N1", "N2", "N3", "R1", "R2"]
-
-    # Protocol constant
-    PROTOCOL_PING = 0
 
     def __init__(self, mac_address, ip_address, port, network, default_gateway=None):
         self.mac_address = mac_address
@@ -46,6 +44,12 @@ class Node:
         # Start a non-daemon thread to listen for incoming frames
         self.listen_thread = threading.Thread(target=self.listen_for_frames)
         self.listen_thread.start()
+
+        # Add a sequence counter for ICMP messages
+        self.icmp_sequence = 0
+
+        # Track ping requests for matching responses
+        self.ping_requests = {}
 
     def init_arp_table(self, arp_entries):
         """Initialize the ARP table with known IP-to-MAC mappings"""
@@ -102,6 +106,43 @@ class Node:
             self.send_frame(destination_mac, packet_data)
         else:
             print(f"No route to host 0x{destination_ip:02X}")
+
+    def send_icmp_echo(self, destination_ip, data="PING"):
+        """
+        Send an ICMP Echo Request (ping) to the specified destination IP
+
+        Args:
+            destination_ip: IP address of destination (hex value)
+            data: Optional data to include in the ping
+        """
+        # Increment sequence number
+        self.icmp_sequence = (self.icmp_sequence + 1) % 256
+
+        # Create ICMP Echo Request
+        icmp_packet = ICMPPacket.create_echo_request(
+            identifier=self.ip_address,  # Use our IP as the identifier
+            sequence=self.icmp_sequence,
+            data=data,
+        )
+
+        # Send the ICMP packet encapsulated in an IP packet
+        self.send_ip_packet(
+            destination_ip=destination_ip,
+            protocol=self.PROTOCOL_ICMP,
+            data=icmp_packet.encode(),
+        )
+
+        # Store the timestamp for calculating round-trip time
+        self.ping_requests[self.icmp_sequence] = {
+            "timestamp": threading.Event(),
+            "responded": False,
+            "destination": destination_ip,
+        }
+        print(
+            f"Sent ICMP Echo Request to 0x{destination_ip:02X} (seq={self.icmp_sequence})"
+        )
+
+        return self.icmp_sequence  # Return sequence for tracking
 
     def process_node_mac(self, mac_address):
         """Convert MAC address to port number"""
@@ -169,19 +210,170 @@ class Node:
             print(
                 f"  Received IP packet from 0x{ip_packet.source_ip:02X} to 0x{ip_packet.dest_ip:02X}"
             )
-            print(f"  Protocol: {ip_packet.protocol}, Data: {ip_packet.data}")
+            print(f"  Protocol: {ip_packet.protocol}, Data length: {ip_packet.length}")
 
-            # Handle ping protocol
-            # if ip_packet.protocol == Node.PROTOCOL_PING:
-            #     # Check if the data already contains "REPLY:" to prevent infinite loop
-            #     if not ip_packet.data.startswith("REPLY:"):
-            #         print(f"  Ping request received, sending reply")
-            #         reply_data = f"REPLY: {ip_packet.data}"
-            #         self.send_ip_packet(ip_packet.source_ip, Node.PROTOCOL_PING, reply_data)
-            #     else:
-            #         print(f"  Ping reply received")
+            # Handle different protocols
+            if ip_packet.protocol == ICMPPacket.PROTOCOL:
+                self.handle_icmp_packet(ip_packet)
+            elif ip_packet.protocol == IPPacket.PROTOCOL:
+                # Legacy ping protocol
+                print(f"  Data: {ip_packet.data}")
+                # TODO: Handle ping protocol
+                # Check if the data already contains "REPLY:" to prevent infinite loop
+                # if not ip_packet.data.startswith("REPLY:"):
+                #     print(f"  Ping request received, sending reply")
+                #     reply_data = f"REPLY: {ip_packet.data}"
+                #     self.send_ip_packet(ip_packet.source_ip, IPPacket.PROTOCOL, reply_data)
+                # else:
+                #     print(f"  Ping reply received")
+            else:
+                print(
+                    f"  Unknown protocol: {ip_packet.protocol}, Data: {ip_packet.data}"
+                )
         else:
             print(f"  Dropped IP packet intended for 0x{ip_packet.dest_ip:02X}")
+
+    def handle_icmp_packet(self, ip_packet):
+        """Handle ICMP packets"""
+        try:
+            icmp_packet = ICMPPacket.decode(ip_packet.data)
+            print(f"  Received ICMP packet: {icmp_packet}")
+
+            if icmp_packet.is_echo_request():
+                print(
+                    f"  Echo request received from 0x{ip_packet.source_ip:02X}, sending reply"
+                )
+
+                # Create and send echo reply with same ID, sequence, and data
+                reply = ICMPPacket.create_echo_reply(
+                    icmp_packet.identifier, icmp_packet.sequence, icmp_packet.data
+                )
+
+                self.send_ip_packet(
+                    destination_ip=ip_packet.source_ip,
+                    protocol=self.PROTOCOL_ICMP,
+                    data=reply.encode(),
+                )
+
+            elif icmp_packet.is_echo_reply():
+                # If we get an echo reply, check if it matches one of our requests
+                print(f"  Echo reply received from 0x{ip_packet.source_ip:02X}")
+
+                if icmp_packet.sequence in self.ping_requests:
+                    request = self.ping_requests[icmp_packet.sequence]
+                    if (
+                        not request["responded"]
+                        and request["destination"] == ip_packet.source_ip
+                    ):
+                        request["responded"] = True
+                        print(f"  Matched ping request sequence {icmp_packet.sequence}")
+                        print(f"  Reply data: {icmp_packet.data}")
+                    else:
+                        print(
+                            f"  Duplicate or mismatched reply for sequence {icmp_packet.sequence}"
+                        )
+                else:
+                    print(
+                        f"  Unexpected echo reply with sequence {icmp_packet.sequence}"
+                    )
+
+            else:
+                # Handle other ICMP message types
+                if icmp_packet.icmp_type == ICMPPacket.DEST_UNREACHABLE:
+                    print(f"  Destination unreachable: code {icmp_packet.code}")
+                elif icmp_packet.icmp_type == ICMPPacket.TIME_EXCEEDED:
+                    print(f"  Time exceeded: code {icmp_packet.code}")
+                else:
+                    print(
+                        f"  Other ICMP message: type {icmp_packet.icmp_type}, code {icmp_packet.code}"
+                    )
+
+        except Exception as e:
+            print(f"  Error processing ICMP packet: {e}")
+            traceback.print_exc()
+
+    def display_help(self):
+        """Display help information for the command interface"""
+        print(
+            f"{self.mac_address} started with IP 0x{self.ip_address:02X} ({self.ip_address})"
+        )
+        print("Available commands:")
+        print("  <destination> <message> - Send raw Ethernet frame (original format)")
+        print("  ping <ip_hex> <message> - Send a ping to the specified IP")
+        print("  arp - Display the ARP table")
+        print("  help - Show this help message")
+        print("  q - Exit")
+
+    def run(self):
+        """Start an interactive command interface for the node"""
+        self.display_help()
+
+        try:
+            while True:
+                user_input = input(f"{self.mac_address}>> ").strip()
+                if user_input.lower() == "q":
+                    print("Exiting...")
+                    break
+                if not user_input:
+                    continue
+                if user_input.lower() == "help":
+                    self.display_help()  # Fixed: removed node_id parameter
+                    continue
+
+                parts = user_input.split(" ", 1)
+
+                if parts[0].lower() == "ping":
+                    if len(parts) < 2:
+                        print("Invalid input. Usage: ping <ip_hex> <message>")
+                        continue
+
+                    ping_parts = parts[1].split(" ", 1)
+                    if len(ping_parts) < 2:
+                        print("Invalid input. Usage: ping <ip_hex> <message>")
+                        continue
+
+                    try:
+                        # Convert hex string to integer
+                        dest_ip = int(ping_parts[0], 16)
+                        message = ping_parts[1]
+
+                        # Send ping packet
+                        self.send_ip_packet(dest_ip, IPPacket.PROTOCOL, message)
+                        print(f"Ping sent to 0x{dest_ip:02X} with message: {message}")
+                    except ValueError:
+                        print(
+                            "Invalid IP address. Please enter a valid hex value (e.g., 2A)"
+                        )
+
+                elif parts[0].lower() == "arp":
+                    print("ARP Table:")
+                    for ip, mac in self.arp_table.items():
+                        print(f"  0x{ip:02X} -> {mac}")
+
+                elif parts[0] in self.VALID_DESTINATION:
+                    # Original frame-sending format
+                    if len(parts) != 2:
+                        print(
+                            "Invalid input. Please provide both destination and data."
+                        )
+                        continue
+
+                    destination = parts[0]
+                    data = parts[1]
+
+                    self.send_frame(destination, data)
+                    print(f"Ethernet frame sent to {destination} with data: {data}")
+
+                else:
+                    print("Invalid command or destination.")
+                    print("Available commands: ping, arp, help, q")
+                    print("Or send raw frame: <destination> <message>")
+
+        except KeyboardInterrupt:
+            print("\nKeyboardInterrupt received. Exiting...")
+        finally:
+            self.shutdown()
+            return
 
     def shutdown(self):
         """Shutdown the node and close connections"""

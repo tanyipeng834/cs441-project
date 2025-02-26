@@ -1,5 +1,3 @@
-from .ethernet_frame import EthernetFrame
-from .ip_packet import IPPacket
 from .node import Node
 
 
@@ -8,21 +6,21 @@ class Router:
     Router with multiple interfaces that can forward IP packets between networks
     """
 
-    def __init__(self, interfaces):
+    def __init__(self, nodes):
         """
-        Initialize router with multiple interfaces
+        Initialize router with multiple router nodes
 
         Args:
-            interfaces: List of RouterInterface objects
+            nodes: List of RouterNode objects
         """
-        self.interfaces = interfaces
+        self.nodes = nodes
         self.routing_table = {}  # Maps destination IP to interface
 
-        # Start all interfaces
-        for interface in self.interfaces:
-            interface.start(self)
+        # Start all nodes
+        for node in self.nodes:
+            node.start(self)
 
-        print(f"Router started with {len(self.interfaces)} interfaces")
+        print(f"Router started with {len(self.nodes)} interfaces")
 
     def init_routing_table(self, routing_entries):
         """Initialize the routing table with known routes"""
@@ -31,9 +29,9 @@ class Router:
     def get_interface_for_ip(self, ip_address):
         """Find the appropriate interface to route to a given IP"""
         # Check if IP is in a directly connected network
-        for interface in self.interfaces:
-            if ip_address in interface.network_ips:
-                return interface
+        for node in self.nodes:
+            if ip_address in node.network_ips:
+                return node
 
         # Check routing table for a route
         if ip_address in self.routing_table:
@@ -44,13 +42,13 @@ class Router:
 
     def shutdown(self):
         """Shutdown all interfaces"""
-        for interface in self.interfaces:
-            interface.shutdown()
+        for node in self.nodes:
+            node.shutdown()
 
 
-class RouterInterface(Node):
+class RouterNode(Node):
     """
-    A router interface extends the Node class to connect a router to a network
+    A router node extends the Node class to connect a router to a network
     """
 
     def __init__(self, mac_address, ip_address, port, network, router=None):

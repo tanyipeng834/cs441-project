@@ -5,6 +5,8 @@ class IPPacket:
     DataLength(1 byte), Data(up to 256 bytes)
     """
 
+    PROTOCOL = 0
+
     def __init__(self, source_ip, dest_ip, protocol, data):
         self.source_ip = source_ip
         self.dest_ip = dest_ip
