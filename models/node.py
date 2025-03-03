@@ -70,18 +70,25 @@ class Node:
             destination_mac: MAC address of destination (2 characters)
             data: data to send in the frame
         """
-        for node_mac in self.network:
-            if node_mac != self.mac_address:  # Skip sending to itself
-                destination_port = self.process_node_mac(node_mac)
-                try:
-                    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-                        s.connect((Node.HOST_IP, destination_port))
-                        frame = EthernetFrame(self.mac_address, destination_mac, data)
-                        s.sendall(frame.encode())
-                except Exception as e:
-                    print(
-                        f"Error sending frame from {self.mac_address} to port {destination_port}: {e}"
-                    )
+        frames = []
+        
+        for i in range(0, len(data), Node.MAX_DATA_LENGTH):
+            chunk = data[i:i + Node.MAX_DATA_LENGTH]
+            frames.append(chunk)
+        print(frames)
+        
+        # Send each frame (if there are multiple frames)
+        for frame_data in frames:
+            for node_mac in self.network:
+                if node_mac != self.mac_address:  # Skip sending to itself
+                    destination_port = self.process_node_mac(node_mac)
+                    try:
+                        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+                            s.connect((Node.HOST_IP, destination_port))
+                            frame = EthernetFrame(self.mac_address, destination_mac, frame_data)
+                            s.sendall(frame.encode())
+                    except Exception as e:
+                        print(f"Error sending frame from {self.mac_address} to port {destination_port}: {e}")
 
     def send_ip_packet(self, destination_ip, protocol, data):
         """
@@ -93,19 +100,28 @@ class Node:
             data: Data to send
         """
         # Create the IP packet
-        ip_packet = IPPacket(self.ip_address, destination_ip, protocol, data)
-        packet_data = ip_packet.encode()
+     # Max data size per IP packet
+    # Split data into chunks if it's larger than MAX_DATA_SIZE
+        MAX_DATA_SIZE = Node.MAX_DATA_LENGTH -4
+        chunks = [data[i:i + MAX_DATA_SIZE] for i in range(0, len(data), MAX_DATA_SIZE)]
+    
+        for chunk in chunks:
+            # Create the IP packet for the chunk
+            ip_packet = IPPacket(self.ip_address, destination_ip, protocol, chunk)
+            packet_data = ip_packet.encode()
 
-        # Determine the MAC address to send to (either direct or via gateway)
-        destination_mac = self.get_mac_for_ip(destination_ip)
-
-        if destination_mac:
-            print(
-                f"Sending IP packet to 0x{destination_ip:02X} via MAC {destination_mac}"
-            )
+            # Determine the MAC address to send to (either direct or via gateway)
+            destination_mac = self.get_mac_for_ip(destination_ip)
+            
+            # Send the packet encapsulated in an Ethernet frame
             self.send_frame(destination_mac, packet_data)
-        else:
-            print(f"No route to host 0x{destination_ip:02X}")
+            if destination_mac:
+                print(
+                    f"Sending IP packet to 0x{destination_ip:02X} via MAC {destination_mac}"
+                )
+                self.send_frame(destination_mac, packet_data)
+            else:
+                print(f"No route to host 0x{destination_ip:02X}")
 
     def send_icmp_echo(self, destination_ip, data="PING"):
         """
@@ -379,6 +395,8 @@ class Node:
 
                     destination = parts[0]
                     data = parts[1]
+    
+                    
 
                     self.send_frame(destination, data)
                     print(f"Ethernet frame sent to {destination} with data: {data}")
