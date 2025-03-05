@@ -1,0 +1,58 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "Run Network Simulation",
+            "dependsOrder": "parallel",
+            "dependsOn": [
+                "Run Node 1",
+                "Run Node 2",
+                "Run Node 3",
+                "Run Routers"
+            ]
+        },
+        {
+            "label": "Run Node 1",
+            "type": "shell",
+            "command": "python node1.py",
+            "presentation": {
+                "reveal": "always",
+                "panel": "new",
+                "group": "nodes"
+            },
+            "isBackground": true
+        },
+        {
+            "label": "Run Node 2",
+            "type": "shell",
+            "command": "python node2.py",
+            "presentation": {
+                "reveal": "always",
+                "panel": "new",
+                "group": "nodes"
+            },
+            "isBackground": true
+        },
+        {
+            "label": "Run Node 3",
+            "type": "shell",
+            "command": "python node3.py",
+            "presentation": {
+                "reveal": "always",
+                "panel": "new",
+                "group": "nodes"
+            },
+            "isBackground": true
+        },
+        {
+            "label": "Run Routers",
+            "type": "shell",
+            "command": "python routers.py",
+            "presentation": {
+                "reveal": "always",
+                "panel": "new",
+            },
+            "isBackground": true
+        }
+    ]
+}
