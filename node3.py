@@ -1,10 +1,10 @@
 import sys
 import atexit
-from models.node import Node
+from models.sniffing_node import SniffingNode
 
 if __name__ == "__main__":
-    # Create Node 3 with IP address 0x2B
-    node = Node("N3", 0x2B, 50003, ["N2", "N3", "R2"], default_gateway="R2")
+    # Create Node 3 with IP address 0x2B as a malicious sniffing node
+    node = SniffingNode("N3", 0x2B, 50003, ["N2", "N3", "R2"], default_gateway="R2")
 
     # Initialize ARP table - Node3 knows about itself, Node2, and R2 in its network
     node.init_arp_table(
