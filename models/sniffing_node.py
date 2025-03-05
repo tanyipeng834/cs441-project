@@ -71,7 +71,7 @@ class SniffingNode(Node):
                 self.sniffed_packets.append(sniffed_info)
                 print(f"SNIFFED: Frame from {source_mac} to {destination_mac}")
 
-        # Process frame normally whether it's addressed to us or not
+        # Process frame normally for frames addressed to this node
         if destination_mac == self.mac_address:
             print(f"Node {self.mac_address} received Ethernet frame from {source_mac}")
 
@@ -85,8 +85,13 @@ class SniffingNode(Node):
                     # If it's not an IP packet, just treat as raw data
                     print(f"  Data: {data}")
         else:
-            # Normal node would drop the frame, but we already sniffed it if in promiscuous mode
-            if not self.promiscuous_mode:
+            # Frame is not addressed to this node - drop it
+            # (even though we might have sniffed it in promiscuous mode)
+            if self.promiscuous_mode:
+                print(
+                    f"Node {self.mac_address} sniffed but dropped frame from {source_mac} intended for {destination_mac}"
+                )
+            else:
                 print(
                     f"Node {self.mac_address} dropped frame from {source_mac} intended for {destination_mac}"
                 )
