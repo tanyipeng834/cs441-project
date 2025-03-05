@@ -1,6 +1,6 @@
 from models.node import Node
 from models.ip_packet import IPPacket
-from models.icmp_packet import ICMPPacket
+from models.ping_protocol import PingProtocol
 
 
 class SniffingNode(Node):
@@ -55,15 +55,15 @@ class SniffingNode(Node):
                     sniffed_info["source_ip"] = f"0x{ip_packet.source_ip:02X}"
                     sniffed_info["dest_ip"] = f"0x{ip_packet.dest_ip:02X}"
 
-                    # Try to decode as ICMP if applicable
-                    if ip_packet.protocol == ICMPPacket.PROTOCOL:
+                    # Try to decode as ping if applicable
+                    if ip_packet.protocol == PingProtocol.PROTOCOL:
                         try:
-                            icmp_packet = ICMPPacket.decode(ip_packet.data)
-                            sniffed_info["icmp_type"] = icmp_packet.icmp_type
-                            sniffed_info["icmp_code"] = icmp_packet.code
-                            sniffed_info["icmp_data"] = icmp_packet.data
+                            ping_packet = PingProtocol.decode(ip_packet.data)
+                            sniffed_info["ping_type"] = ping_packet.ping_type
+                            sniffed_info["ping_code"] = ping_packet.code
+                            sniffed_info["ping_data"] = ping_packet.data
                         except:
-                            sniffed_info["icmp_decode_error"] = True
+                            sniffed_info["ping_decode_error"] = True
                 except:
                     # If not an IP packet, just store the raw data
                     pass
@@ -113,19 +113,19 @@ class SniffingNode(Node):
                 print(f"  Destination IP: {packet['dest_ip']}")
                 print(f"  Protocol: {packet['protocol']}")
 
-                if "icmp_type" in packet:
-                    icmp_types = {
+                if "ping_type" in packet:
+                    ping_types = {
                         0: "ECHO_REPLY",
                         3: "DEST_UNREACHABLE",
                         8: "ECHO_REQUEST",
                         11: "TIME_EXCEEDED",
                     }
-                    icmp_type = icmp_types.get(
-                        packet["icmp_type"], str(packet["icmp_type"])
+                    ping_type = ping_types.get(
+                        packet["ping_type"], str(packet["ping_type"])
                     )
-                    print(f"  ICMP Type: {icmp_type}")
-                    print(f"  ICMP Code: {packet['icmp_code']}")
-                    print(f"  ICMP Data: {packet['icmp_data']}")
+                    print(f"  ping Type: {ping_type}")
+                    print(f"  ping Code: {packet['ping_code']}")
+                    print(f"  ping Data: {packet['ping_data']}")
             else:
                 print(f"  Raw Data: {packet['raw_data']}")
         print("\n================================")
@@ -203,17 +203,17 @@ class SniffingNode(Node):
                             "Invalid IP address. Please enter a valid hex value (e.g., 2A)"
                         )
 
-                elif parts[0].lower() == "pingicmp":
+                elif parts[0].lower() == "pingping":
                     if len(parts) < 2:
-                        print("Invalid input. Usage: pingicmp <ip_hex>")
+                        print("Invalid input. Usage: pingping <ip_hex>")
                         continue
 
                     try:
                         # Convert hex string to integer
                         dest_ip = int(parts[1], 16)
 
-                        # Send ICMP ping packet
-                        self.send_icmp_echo(dest_ip)
+                        # Send ping
+                        self.send_echo(dest_ip)
                     except ValueError:
                         print(
                             "Invalid IP address. Please enter a valid hex value (e.g., 2A)"
@@ -241,7 +241,7 @@ class SniffingNode(Node):
                 else:
                     print("Invalid command or destination.")
                     print(
-                        "Available commands: ping, pingicmp, arp, sniff on/off, sniffed, clear, help, q"
+                        "Available commands: ping, pingping, arp, sniff on/off, sniffed, clear, help, q"
                     )
                     print("Or send raw frame: <destination> <message>")
 

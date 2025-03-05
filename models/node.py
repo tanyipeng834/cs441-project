@@ -4,7 +4,7 @@ import sys
 import traceback
 from .ethernet_frame import EthernetFrame
 from .ip_packet import IPPacket
-from .icmp_packet import ICMPPacket
+from .ping_protocol import PingProtocol
 
 
 class Node:
@@ -75,7 +75,6 @@ class Node:
         for i in range(0, len(data), Node.MAX_DATA_LENGTH):
             chunk = data[i : i + Node.MAX_DATA_LENGTH]
             frames.append(chunk)
-        print(frames)
 
         # Send each frame (if there are multiple frames)
         for frame_data in frames:
@@ -128,9 +127,9 @@ class Node:
             else:
                 print(f"No route to host 0x{destination_ip:02X}")
 
-    def send_icmp_echo(self, destination_ip, data="PING"):
+    def send_echo(self, destination_ip, data="PING"):
         """
-        Send an ICMP Echo Request (ping) to the specified destination IP
+        Send an Echo Request (ping) to the specified destination IP
 
         Args:
             destination_ip: IP address of destination (hex value)
@@ -140,7 +139,7 @@ class Node:
         self.icmp_sequence = (self.icmp_sequence + 1) % 256
 
         # Create ICMP Echo Request
-        icmp_packet = ICMPPacket.create_echo_request(
+        icmp_packet = PingProtocol.create_echo_request(
             identifier=self.ip_address,  # Use our IP as the identifier
             sequence=self.icmp_sequence,
             data=data,
@@ -149,7 +148,7 @@ class Node:
         # Send the ICMP packet encapsulated in an IP packet
         self.send_ip_packet(
             destination_ip=destination_ip,
-            protocol=ICMPPacket.PROTOCOL,
+            protocol=PingProtocol.PROTOCOL,
             data=icmp_packet.encode(),
         )
 
@@ -234,19 +233,8 @@ class Node:
             print(f"  Protocol: {ip_packet.protocol}, Data length: {ip_packet.length}")
 
             # Handle different protocols
-            if ip_packet.protocol == ICMPPacket.PROTOCOL:
+            if ip_packet.protocol == PingProtocol.PROTOCOL:
                 self.handle_icmp_packet(ip_packet)
-            elif ip_packet.protocol == IPPacket.PROTOCOL:
-                # Legacy ping protocol
-                print(f"  Data: {ip_packet.data}")
-                # TODO: Handle ping protocol
-                # Check if the data already contains "REPLY:" to prevent infinite loop
-                # if not ip_packet.data.startswith("REPLY:"):
-                #     print(f"  Ping request received, sending reply")
-                #     reply_data = f"REPLY: {ip_packet.data}"
-                #     self.send_ip_packet(ip_packet.source_ip, IPPacket.PROTOCOL, reply_data)
-                # else:
-                #     print(f"  Ping reply received")
             else:
                 print(
                     f"  Unknown protocol: {ip_packet.protocol}, Data: {ip_packet.data}"
@@ -257,7 +245,7 @@ class Node:
     def handle_icmp_packet(self, ip_packet: IPPacket):
         """Handle ICMP packets"""
         try:
-            icmp_packet = ICMPPacket.decode(ip_packet.data)
+            icmp_packet = PingProtocol.decode(ip_packet.data)
             print(f"  Received ICMP packet: {icmp_packet}")
 
             if icmp_packet.is_echo_request():
@@ -266,13 +254,13 @@ class Node:
                 )
 
                 # Create and send echo reply with same ID, sequence, and data
-                reply = ICMPPacket.create_echo_reply(
+                reply = PingProtocol.create_echo_reply(
                     icmp_packet.identifier, icmp_packet.sequence, icmp_packet.data
                 )
 
                 self.send_ip_packet(
                     destination_ip=ip_packet.source_ip,
-                    protocol=ICMPPacket.PROTOCOL,
+                    protocol=PingProtocol.PROTOCOL,
                     data=reply.encode(),
                 )
 
@@ -300,13 +288,13 @@ class Node:
 
             else:
                 # Handle other ICMP message types
-                if icmp_packet.icmp_type == ICMPPacket.DEST_UNREACHABLE:
+                if icmp_packet.ping_type == PingProtocol.DEST_UNREACHABLE:
                     print(f"  Destination unreachable: code {icmp_packet.code}")
-                elif icmp_packet.icmp_type == ICMPPacket.TIME_EXCEEDED:
+                elif icmp_packet.ping_type == PingProtocol.TIME_EXCEEDED:
                     print(f"  Time exceeded: code {icmp_packet.code}")
                 else:
                     print(
-                        f"  Other ICMP message: type {icmp_packet.icmp_type}, code {icmp_packet.code}"
+                        f"  Other ICMP message: type {icmp_packet.ping_type}, code {icmp_packet.code}"
                     )
 
         except Exception as e:
@@ -320,10 +308,7 @@ class Node:
         )
         print("Available commands:")
         print("  <destination> <message> - Send raw Ethernet frame (original format)")
-        print("  ping <ip_hex> <message> - Send a ping to the specified IP")
-        print(
-            "  pingicmp <ip_hex> - Send a ping with default message 'PING' using ICMP"
-        )
+        print("  ping <ip_hex> - Send a ping to the specified IP")
         print("  arp - Display the ARP table")
         print("  help - Show this help message")
         print("  q - Exit")
@@ -351,35 +336,12 @@ class Node:
                         print("Invalid input. Usage: ping <ip_hex>")
                         continue
 
-                    ping_parts = parts[1].split(" ", 1)
-                    if len(ping_parts) < 2:
-                        print("Invalid input. Usage: ping <ip_hex> <message>")
-                        continue
-
-                    try:
-                        # Convert hex string to integer
-                        dest_ip = int(ping_parts[0], 16)
-                        message = ping_parts[1]
-
-                        # Send ping packet
-                        self.send_ip_packet(dest_ip, IPPacket.PROTOCOL, message)
-                        print(f"Ping sent to 0x{dest_ip:02X} with message: {message}")
-                    except ValueError:
-                        print(
-                            "Invalid IP address. Please enter a valid hex value (e.g., 2A)"
-                        )
-
-                if parts[0].lower() == "pingicmp":
-                    if len(parts) < 2:
-                        print("Invalid input. Usage: pingicmp <ip_hex>")
-                        continue
-
                     try:
                         # Convert hex string to integer
                         dest_ip = int(parts[1], 16)
 
                         # Send ICMP ping packet
-                        self.send_icmp_echo(dest_ip)
+                        self.send_echo(dest_ip)
                     except ValueError:
                         print(
                             "Invalid IP address. Please enter a valid hex value (e.g., 2A)"
