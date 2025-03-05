@@ -45,8 +45,8 @@ class Node:
         self.listen_thread = threading.Thread(target=self.listen_for_frames)
         self.listen_thread.start()
 
-        # Add a sequence counter for ICMP messages
-        self.icmp_sequence = 0
+        # Add a sequence counter for Ping Protocol messages
+        self.ping_sequence = 0
 
         # Track ping requests for matching responses
         self.ping_requests = {}
@@ -136,33 +136,33 @@ class Node:
             data: Optional data to include in the ping
         """
         # Increment sequence number
-        self.icmp_sequence = (self.icmp_sequence + 1) % 256
+        self.ping_sequence = (self.ping_sequence + 1) % 256
 
-        # Create ICMP Echo Request
-        icmp_packet = PingProtocol.create_echo_request(
+        # Create Ping Protocol Echo Request
+        ping_protocol = PingProtocol.create_echo_request(
             identifier=self.ip_address,  # Use our IP as the identifier
-            sequence=self.icmp_sequence,
+            sequence=self.ping_sequence,
             data=data,
         )
 
-        # Send the ICMP packet encapsulated in an IP packet
+        # Send the Ping Protocol packet encapsulated in an IP packet
         self.send_ip_packet(
             destination_ip=destination_ip,
             protocol=PingProtocol.PROTOCOL,
-            data=icmp_packet.encode(),
+            data=ping_protocol.encode(),
         )
 
         # Store the timestamp for calculating round-trip time
-        self.ping_requests[self.icmp_sequence] = {
+        self.ping_requests[self.ping_sequence] = {
             "timestamp": threading.Event(),
             "responded": False,
             "destination": destination_ip,
         }
         print(
-            f"Sent ICMP Echo Request to 0x{destination_ip:02X} (seq={self.icmp_sequence})"
+            f"Sent Ping Protocol Echo Request to 0x{destination_ip:02X} (seq={self.ping_sequence})"
         )
 
-        return self.icmp_sequence  # Return sequence for tracking
+        return self.ping_sequence  # Return sequence for tracking
 
     def process_node_mac(self, mac_address):
         """Convert MAC address to port number"""
@@ -222,7 +222,7 @@ class Node:
                 f"Node {self.mac_address} dropped frame from {source_mac} intended for {destination_mac}"
             )
 
-    def process_ip_packet(self, ip_packet, source_mac):
+    def process_ip_packet(self, ip_packet: IPPacket, source_mac):
         """Process a received IP packet"""
         # No ARP table updates for this simplified project
 
@@ -234,7 +234,7 @@ class Node:
 
             # Handle different protocols
             if ip_packet.protocol == PingProtocol.PROTOCOL:
-                self.handle_icmp_packet(ip_packet)
+                self.handle_ping_protocol(ip_packet)
             else:
                 print(
                     f"  Unknown protocol: {ip_packet.protocol}, Data: {ip_packet.data}"
@@ -242,20 +242,20 @@ class Node:
         else:
             print(f"  Dropped IP packet intended for 0x{ip_packet.dest_ip:02X}")
 
-    def handle_icmp_packet(self, ip_packet: IPPacket):
-        """Handle ICMP packets"""
+    def handle_ping_protocol(self, ip_packet: IPPacket):
+        """Handle Ping Protocol packets"""
         try:
-            icmp_packet = PingProtocol.decode(ip_packet.data)
-            print(f"  Received ICMP packet: {icmp_packet}")
+            ping_protocol = PingProtocol.decode(ip_packet.data)
+            print(f"  Received Ping Protocol packet: {ping_protocol}")
 
-            if icmp_packet.is_echo_request():
+            if ping_protocol.is_echo_request():
                 print(
                     f"  Echo request received from 0x{ip_packet.source_ip:02X}, sending reply"
                 )
 
                 # Create and send echo reply with same ID, sequence, and data
                 reply = PingProtocol.create_echo_reply(
-                    icmp_packet.identifier, icmp_packet.sequence, icmp_packet.data
+                    ping_protocol.identifier, ping_protocol.sequence, ping_protocol.data
                 )
 
                 self.send_ip_packet(
@@ -264,41 +264,41 @@ class Node:
                     data=reply.encode(),
                 )
 
-            elif icmp_packet.is_echo_reply():
+            elif ping_protocol.is_echo_reply():
                 # If we get an echo reply, check if it matches one of our requests
                 print(f"  Echo reply received from 0x{ip_packet.source_ip:02X}")
 
-                if icmp_packet.sequence in self.ping_requests:
-                    request = self.ping_requests[icmp_packet.sequence]
+                if ping_protocol.sequence in self.ping_requests:
+                    request = self.ping_requests[ping_protocol.sequence]
                     if (
                         not request["responded"]
                         and request["destination"] == ip_packet.source_ip
                     ):
                         request["responded"] = True
-                        print(f"  Matched ping request sequence {icmp_packet.sequence}")
-                        print(f"  Reply data: {icmp_packet.data}")
+                        print(f"  Matched ping request sequence {ping_protocol.sequence}")
+                        print(f"  Reply data: {ping_protocol.data}")
                     else:
                         print(
-                            f"  Duplicate or mismatched reply for sequence {icmp_packet.sequence}"
+                            f"  Duplicate or mismatched reply for sequence {ping_protocol.sequence}"
                         )
                 else:
                     print(
-                        f"  Unexpected echo reply with sequence {icmp_packet.sequence}"
+                        f"  Unexpected echo reply with sequence {ping_protocol.sequence}"
                     )
 
             else:
-                # Handle other ICMP message types
-                if icmp_packet.ping_type == PingProtocol.DEST_UNREACHABLE:
-                    print(f"  Destination unreachable: code {icmp_packet.code}")
-                elif icmp_packet.ping_type == PingProtocol.TIME_EXCEEDED:
-                    print(f"  Time exceeded: code {icmp_packet.code}")
+                # Handle other Ping Protocol message types
+                if ping_protocol.ping_type == PingProtocol.DEST_UNREACHABLE:
+                    print(f"  Destination unreachable: code {ping_protocol.code}")
+                elif ping_protocol.ping_type == PingProtocol.TIME_EXCEEDED:
+                    print(f"  Time exceeded: code {ping_protocol.code}")
                 else:
                     print(
-                        f"  Other ICMP message: type {icmp_packet.ping_type}, code {icmp_packet.code}"
+                        f"  Other Ping Protocol message: type {ping_protocol.ping_type}, code {ping_protocol.code}"
                     )
 
         except Exception as e:
-            print(f"  Error processing ICMP packet: {e}")
+            print(f"  Error processing Ping Protocol packet: {e}")
             traceback.print_exc()
 
     def display_help(self):
@@ -340,7 +340,7 @@ class Node:
                         # Convert hex string to integer
                         dest_ip = int(parts[1], 16)
 
-                        # Send ICMP ping packet
+                        # Send Ping
                         self.send_echo(dest_ip)
                     except ValueError:
                         print(
