@@ -152,9 +152,8 @@ class Node:
             data=ping_protocol.encode(),
         )
 
-        # Store the timestamp for calculating round-trip time
+        # Store ping request for tracking responses
         self.ping_requests[self.ping_sequence] = {
-            "timestamp": threading.Event(),
             "responded": False,
             "destination": destination_ip,
         }

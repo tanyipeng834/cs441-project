@@ -5,7 +5,7 @@ class PingProtocol:
 
     """
 
-    PROTOCOL = 1
+    PROTOCOL = 0
 
     # Type constants
     ECHO_REPLY = 0
