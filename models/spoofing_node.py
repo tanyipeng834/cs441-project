@@ -80,11 +80,11 @@ class SpoofingNode(Node):
             )
 
         # Store the timestamp for calculating round-trip time
-            self.ping_requests[self.ping_sequence] = {
-                "timestamp": threading.Event(),
-                "responded": False,
-                "destination": destination_ip,
-            }
+        self.ping_requests[self.ping_sequence] = {
+        
+            "responded": False,
+            "destination": destination_ip,
+        }
         print(
             f"Sent Ping Protocol Echo Request to 0x{destination_ip:02X} (seq={self.ping_sequence})"
         )
