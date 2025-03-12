@@ -309,14 +309,14 @@ class Node:
             traceback.print_exc()
 
     # Command registration decorator
-    def command(self, name, help_text):
+    def command(self, name, help_text, default = False):
         def decorator(func):
             @wraps(func)
             def wrapper(*args, **kwargs):
                 return func(*args, **kwargs)
 
             # Register the command in the command registry
-            self.commands[name] = {"handler": wrapper, "help": help_text}
+            self.commands[name] = {"handler": wrapper, "help": help_text, "default": default}
             return wrapper
 
         return decorator
@@ -324,7 +324,7 @@ class Node:
     def register_default_commands(self):
         """Register the default commands"""
 
-        @self.command("ping", "<ip_hex> - Send a ping to the specified IP")
+        @self.command("ping", "<ip_hex> - Send a ping to the specified IP", True)
         def cmd_ping(self, args):
             if not args:
                 print("Invalid input. Usage: ping <ip_hex>")
@@ -338,17 +338,17 @@ class Node:
             except ValueError:
                 print("Invalid IP address. Please enter a valid hex value (e.g., 2A)")
 
-        @self.command("arp", "- Display the ARP table")
+        @self.command("arp", "- Display the ARP table", True)
         def cmd_arp(self, args):
             print("ARP Table:")
             for ip, mac in self.arp_table.items():
                 print(f"  0x{ip:02X} -> {mac}")
 
-        @self.command("help", "- Show this help message")
+        @self.command("help", "- Show this help message", True)
         def cmd_help(self, args):
             self.display_help()
 
-        @self.command("q", "- Exit")
+        @self.command("q", "- Exit", True)
         def cmd_quit(self, args):
             return False
 
@@ -363,8 +363,14 @@ class Node:
         print("  <destination> <message> - Send raw Ethernet frame")
 
         # Display help for registered commands
+        # Show non-default commands first
         for cmd_name, cmd_info in self.commands.items():
-            print(f"  {cmd_name} {cmd_info['help']}")
+            if not cmd_info["default"]:
+                print(f"  {cmd_name} {cmd_info['help']}")
+
+        for cmd_name, cmd_info in self.commands.items():
+            if cmd_info["default"]:
+                print(f"  {cmd_name} {cmd_info['help']}")
 
     def run(self):
         """Start an interactive command interface for the node"""

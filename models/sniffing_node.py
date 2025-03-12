@@ -23,7 +23,7 @@ class SniffingNode(Node):
     def register_sniffing_commands(self):
         """Register commands specific to the sniffing node"""
 
-        @self.command("sniff", "<on/off> - Toggle promiscuous mode on/off")
+        @self.command("sniff", "<on/off/show/clear> - Promiscuous mode commands")
         def cmd_sniff(self: SniffingNode, args):
             if not args:
                 print("Invalid input. Usage: sniff <on/off>")
@@ -41,17 +41,13 @@ class SniffingNode(Node):
                 else:
                     self.promiscuous_mode = False
                     print(f"Promiscuous mode disabled on {self.mac_address}")
+            elif args[0].lower() == "show":
+                self.display_sniffed_packets()
+            elif args[0].lower() == "clear":
+                self.sniffed_packets = []
+                print("Sniffed packet list cleared.")
             else:
-                print("Invalid option. Use 'on' or 'off'.")
-
-        @self.command("showsniffed", "- Display all sniffed packets")
-        def cmd_showsniffed(self: SniffingNode, args):
-            self.display_sniffed_packets()
-
-        @self.command("clearsniffed", "- Clear the list of sniffed packets")
-        def cmd_clearsniffed(self: SniffingNode, args):
-            self.sniffed_packets = []
-            print("Sniffed packet list cleared.")
+                print("Invalid option. Usage: sniff <on/off/show/clear>.")
 
     def process_frame(self, frame):
         """
