@@ -5,6 +5,7 @@ import traceback
 from .ethernet_frame import EthernetFrame
 from .ip_packet import IPPacket
 from .ping_protocol import PingProtocol
+from functools import wraps
 
 
 class Node:
@@ -50,6 +51,12 @@ class Node:
 
         # Track ping requests for matching responses
         self.ping_requests = {}
+
+        # Command registry: Maps command names to handler functions and help text
+        self.commands = {}
+
+        # Register built-in commands
+        self.register_default_commands()
 
     def init_arp_table(self, arp_entries):
         """Initialize the ARP table with known IP-to-MAC mappings"""
@@ -223,7 +230,6 @@ class Node:
 
     def process_ip_packet(self, ip_packet: IPPacket):
         """Process a received IP packet"""
-        # No ARP table updates for this simplified project
 
         if ip_packet.dest_ip == self.ip_address:
             print(
@@ -302,75 +308,102 @@ class Node:
             print(f"  Error processing Ping Protocol packet: {e}")
             traceback.print_exc()
 
+    # Command registration decorator
+    def command(self, name, help_text):
+        def decorator(func):
+            @wraps(func)
+            def wrapper(*args, **kwargs):
+                return func(*args, **kwargs)
+
+            # Register the command in the command registry
+            self.commands[name] = {"handler": wrapper, "help": help_text}
+            return wrapper
+
+        return decorator
+
+    def register_default_commands(self):
+        """Register the default commands"""
+
+        @self.command("ping", "<ip_hex> - Send a ping to the specified IP")
+        def cmd_ping(self, args):
+            if not args:
+                print("Invalid input. Usage: ping <ip_hex>")
+                return
+
+            try:
+                # Convert hex string to integer
+                dest_ip = int(args[0], 16)
+                # Send Ping
+                self.send_echo(dest_ip)
+            except ValueError:
+                print("Invalid IP address. Please enter a valid hex value (e.g., 2A)")
+
+        @self.command("arp", "- Display the ARP table")
+        def cmd_arp(self, args):
+            print("ARP Table:")
+            for ip, mac in self.arp_table.items():
+                print(f"  0x{ip:02X} -> {mac}")
+
+        @self.command("help", "- Show this help message")
+        def cmd_help(self, args):
+            self.display_help()
+
+        @self.command("q", "- Exit")
+        def cmd_quit(self, args):
+            return False
+
     def display_help(self):
         """Display help information for the command interface"""
         print(
             f"{self.mac_address} started with IP 0x{self.ip_address:02X} ({self.ip_address})"
         )
         print("Available commands:")
-        print("  <destination> <message> - Send raw Ethernet frame (original format)")
-        print("  ping <ip_hex> - Send a ping to the specified IP")
-        print("  arp - Display the ARP table")
-        print("  help - Show this help message")
-        print("  q - Exit")
+
+        # Display the raw frame sending help
+        print("  <destination> <message> - Send raw Ethernet frame")
+
+        # Display help for registered commands
+        for cmd_name, cmd_info in self.commands.items():
+            print(f"  {cmd_name} {cmd_info['help']}")
 
     def run(self):
         """Start an interactive command interface for the node"""
         self.display_help()
 
         try:
-            while True:
+            running = True
+            while running:
                 user_input = input(f"{self.mac_address}>> ").strip()
-                if user_input.lower() == "q":
-                    print("Exiting...")
-                    break
                 if not user_input:
                     continue
-                if user_input.lower() == "help":
-                    self.display_help()
-                    continue
 
-                parts = user_input.split(" ", 1)
+                # Parse the command and arguments
+                parts = user_input.split()
+                cmd = parts[0].lower()
+                args = parts[1:] if len(parts) > 1 else []
 
-                if parts[0].lower() == "ping":
-                    if len(parts) < 2:
-                        print("Invalid input. Usage: ping <ip_hex>")
+                # Check if it's a registered command
+                if cmd in self.commands:
+                    result = self.commands[cmd]["handler"](self, args)
+                    if result is False:  # Command signals to exit
+                        print("Exiting...")
+                        break
+
+                # Handle raw frame sending (original functionality)
+                elif cmd in self.VALID_DESTINATION:
+                    if not args:
+                        print("Invalid input. Please provide data.")
                         continue
 
-                    try:
-                        # Convert hex string to integer
-                        dest_ip = int(parts[1], 16)
-
-                        # Send Ping
-                        self.send_echo(dest_ip)
-                    except ValueError:
-                        print(
-                            "Invalid IP address. Please enter a valid hex value (e.g., 2A)"
-                        )
-
-                elif parts[0].lower() == "arp":
-                    print("ARP Table:")
-                    for ip, mac in self.arp_table.items():
-                        print(f"  0x{ip:02X} -> {mac}")
-
-                elif parts[0] in self.VALID_DESTINATION:
-                    # Original frame-sending format
-                    if len(parts) != 2:
-                        print(
-                            "Invalid input. Please provide both destination and data."
-                        )
-                        continue
-
-                    destination = parts[0]
-                    data = parts[1]
+                    destination = cmd
+                    data = " ".join(args)
 
                     self.send_frame(destination, data)
                     print(f"Ethernet frame sent to {destination} with data: {data}")
 
                 else:
                     print("Invalid command or destination.")
-                    print("Available commands: ping, arp, help, q")
-                    print("Or send raw frame: <destination> <message>")
+                    print("Use 'help' to see available commands")
 
         except KeyboardInterrupt:
             print("\nKeyboardInterrupt received. Exiting...")

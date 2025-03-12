@@ -39,7 +39,6 @@ class SpoofingNode(Node):
             else:
                 print(f"No route to host 0x{destination_ip:02X}")
 
-
     def send_echo(self, destination_ip, data="PING"):
         """
         Send an Echo Request (ping) to the specified destination IP
@@ -52,27 +51,26 @@ class SpoofingNode(Node):
         self.ping_sequence = (self.ping_sequence + 1) % 256
 
         # Create Ping Protocol Echo Request
-        
 
         # Send the Ping Protocol packet encapsulated in an IP packe
         if destination_ip == 0x2A:
             ping_protocol = PingProtocol.create_echo_request(
-            identifier=0x2B,  # Use our IP as the identifier
-            sequence=self.ping_sequence,
-            data=data,
-        )
+                identifier=0x2B,  # Use our IP as the identifier
+                sequence=self.ping_sequence,
+                data=data,
+            )
             self.send_spoof_ip_packet(
-                source_ip =0x2B,
+                source_ip=0x2B,
                 destination_ip=destination_ip,
                 protocol=PingProtocol.PROTOCOL,
-                data = ping_protocol.encode()
+                data=ping_protocol.encode(),
             )
         else:
             ping_protocol = PingProtocol.create_echo_request(
-            identifier=self.ip_address,  # Use our IP as the identifier
-            sequence=self.ping_sequence,
-            data=data,
-        )
+                identifier=self.ip_address,  # Use our IP as the identifier
+                sequence=self.ping_sequence,
+                data=data,
+            )
             self.send_ip_packet(
                 destination_ip=destination_ip,
                 protocol=PingProtocol.PROTOCOL,
@@ -81,7 +79,6 @@ class SpoofingNode(Node):
 
         # Store the timestamp for calculating round-trip time
         self.ping_requests[self.ping_sequence] = {
-        
             "responded": False,
             "destination": destination_ip,
         }
@@ -90,67 +87,3 @@ class SpoofingNode(Node):
         )
 
         return self.ping_sequence
-    def run(self):
-        """Start an interactive command interface for the node"""
-        self.display_help()
-
-        try:
-            while True:
-                user_input = input(f"{self.mac_address}>> ").strip()
-                if user_input.lower() == "q":
-                    print("Exiting...")
-                    break
-                if not user_input:
-                    continue
-                if user_input.lower() == "help":
-                    self.display_help()
-                    continue
-
-                parts = user_input.split(" ", 1)
-
-                if parts[0].lower() == "ping":
-                    if len(parts) < 2:
-                        print("Invalid input. Usage: ping <ip_hex>")
-                        continue
-
-                    try:
-                        # Convert hex string to integer
-                        dest_ip = int(parts[1], 16)
-                        print(dest_ip)
-
-                        # Send Ping
-                        self.send_echo(dest_ip)
-                    except ValueError:
-                        print(
-                            "Invalid IP address. Please enter a valid hex value (e.g., 2A)"
-                        )
-
-                elif parts[0].lower() == "arp":
-                    print("ARP Table:")
-                    for ip, mac in self.arp_table.items():
-                        print(f"  0x{ip:02X} -> {mac}")
-
-                elif parts[0] in self.VALID_DESTINATION:
-                    # Original frame-sending format
-                    if len(parts) != 2:
-                        print(
-                            "Invalid input. Please provide both destination and data."
-                        )
-                        continue
-
-                    destination = parts[0]
-                    data = parts[1]
-
-                    self.send_frame(destination, data)
-                    print(f"Ethernet frame sent to {destination} with data: {data}")
-
-                else:
-                    print("Invalid command or destination.")
-                    print("Available commands: ping, arp, help, q")
-                    print("Or send raw frame: <destination> <message>")
-
-        except KeyboardInterrupt:
-            print("\nKeyboardInterrupt received. Exiting...")
-        finally:
-            self.shutdown()
-            return

@@ -14,13 +14,44 @@ class SniffingNode(Node):
         # Log to store captured packets
         self.sniffed_packets = []
         self.promiscuous_mode = False
-        print(f"Malicious node {mac_address} initialized with sniffing capabilities.")
 
-    def toggle_promiscuous_mode(self):
-        """Toggle promiscuous mode on/off"""
-        self.promiscuous_mode = not self.promiscuous_mode
-        status = "enabled" if self.promiscuous_mode else "disabled"
-        print(f"Promiscuous mode {status} on {self.mac_address}")
+        # Register additional commands
+        self.register_sniffing_commands()
+
+        print(f"Malicious node {mac_address} initialised.")
+
+    def register_sniffing_commands(self):
+        """Register commands specific to the sniffing node"""
+
+        @self.command("sniff", "<on/off> - Toggle promiscuous mode on/off")
+        def cmd_sniff(self: SniffingNode, args):
+            if not args:
+                print("Invalid input. Usage: sniff <on/off>")
+                return
+
+            if args[0].lower() == "on":
+                if self.promiscuous_mode:
+                    print("Promiscuous mode already enabled.")
+                else:
+                    self.promiscuous_mode = True
+                    print(f"Promiscuous mode enabled on {self.mac_address}")
+            elif args[0].lower() == "off":
+                if not self.promiscuous_mode:
+                    print("Promiscuous mode already disabled.")
+                else:
+                    self.promiscuous_mode = False
+                    print(f"Promiscuous mode disabled on {self.mac_address}")
+            else:
+                print("Invalid option. Use 'on' or 'off'.")
+
+        @self.command("showsniffed", "- Display all sniffed packets")
+        def cmd_showsniffed(self: SniffingNode, args):
+            self.display_sniffed_packets()
+
+        @self.command("clearsniffed", "- Clear the list of sniffed packets")
+        def cmd_clearsniffed(self: SniffingNode, args):
+            self.sniffed_packets = []
+            print("Sniffed packet list cleared.")
 
     def process_frame(self, frame):
         """
@@ -129,124 +160,3 @@ class SniffingNode(Node):
             else:
                 print(f"  Raw Data: {packet['raw_data']}")
         print("\n================================")
-
-    def display_help(self):
-        """Display help information for the command interface with sniffing commands"""
-        super().display_help()
-        print("\nSniffing commands:")
-        print("  sniff on/off - Toggle promiscuous mode (sniffing) on/off")
-        print("  sniffed - Display all sniffed packets")
-        print("  clear - Clear the list of sniffed packets")
-
-    def run(self):
-        """Override run method to add sniffing commands"""
-        self.display_help()
-
-        try:
-            while True:
-                user_input = input(f"{self.mac_address}>> ").strip()
-                if user_input.lower() == "q":
-                    print("Exiting...")
-                    break
-                if not user_input:
-                    continue
-                if user_input.lower() == "help":
-                    self.display_help()
-                    continue
-
-                # Handle sniffing commands
-                if user_input.lower() == "sniff on":
-                    (
-                        self.toggle_promiscuous_mode()
-                        if not self.promiscuous_mode
-                        else print("Promiscuous mode already enabled")
-                    )
-                    continue
-                elif user_input.lower() == "sniff off":
-                    (
-                        self.toggle_promiscuous_mode()
-                        if self.promiscuous_mode
-                        else print("Promiscuous mode already disabled")
-                    )
-                    continue
-                elif user_input.lower() == "sniffed":
-                    self.display_sniffed_packets()
-                    continue
-                elif user_input.lower() == "clear":
-                    self.sniffed_packets = []
-                    print("Sniffed packet list cleared.")
-                    continue
-
-                # Handle original commands
-                parts = user_input.split(" ", 1)
-
-                if parts[0].lower() == "ping":
-                    if len(parts) < 2:
-                        print("Invalid input. Usage: ping <ip_hex>")
-                        continue
-
-                    ping_parts = parts[1].split(" ", 1)
-                    if len(ping_parts) < 2:
-                        print("Invalid input. Usage: ping <ip_hex> <message>")
-                        continue
-
-                    try:
-                        # Convert hex string to integer
-                        dest_ip = int(ping_parts[0], 16)
-                        message = ping_parts[1]
-
-                        # Send ping packet
-                        self.send_ip_packet(dest_ip, IPPacket.PROTOCOL, message)
-                        print(f"Ping sent to 0x{dest_ip:02X} with message: {message}")
-                    except ValueError:
-                        print(
-                            "Invalid IP address. Please enter a valid hex value (e.g., 2A)"
-                        )
-
-                elif parts[0].lower() == "pingping":
-                    if len(parts) < 2:
-                        print("Invalid input. Usage: pingping <ip_hex>")
-                        continue
-
-                    try:
-                        # Convert hex string to integer
-                        dest_ip = int(parts[1], 16)
-
-                        # Send ping
-                        self.send_echo(dest_ip)
-                    except ValueError:
-                        print(
-                            "Invalid IP address. Please enter a valid hex value (e.g., 2A)"
-                        )
-
-                elif parts[0].lower() == "arp":
-                    print("ARP Table:")
-                    for ip, mac in self.arp_table.items():
-                        print(f"  0x{ip:02X} -> {mac}")
-
-                elif parts[0] in self.VALID_DESTINATION:
-                    # Original frame-sending format
-                    if len(parts) != 2:
-                        print(
-                            "Invalid input. Please provide both destination and data."
-                        )
-                        continue
-
-                    destination = parts[0]
-                    data = parts[1]
-
-                    self.send_frame(destination, data)
-                    print(f"Ethernet frame sent to {destination} with data: {data}")
-
-                else:
-                    print("Invalid command or destination.")
-                    print(
-                        "Available commands: ping, pingping, arp, sniff on/off, sniffed, clear, help, q"
-                    )
-                    print("Or send raw frame: <destination> <message>")
-
-        except KeyboardInterrupt:
-            print("\nKeyboardInterrupt received. Exiting...")
-        finally:
-            self.shutdown()
-            return
