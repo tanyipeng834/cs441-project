@@ -212,7 +212,7 @@ class Node:
                 try:
                     # Try to parse as IP packet
                     ip_packet = IPPacket.decode(data)
-                    self.process_ip_packet(ip_packet, source_mac)
+                    self.process_ip_packet(ip_packet)
                 except:
                     # If it's not an IP packet, just treat as raw data
                     print(f"  Data: {data}")
@@ -221,7 +221,7 @@ class Node:
                 f"Node {self.mac_address} dropped frame from {source_mac} intended for {destination_mac}"
             )
 
-    def process_ip_packet(self, ip_packet: IPPacket, source_mac):
+    def process_ip_packet(self, ip_packet: IPPacket):
         """Process a received IP packet"""
         # No ARP table updates for this simplified project
 
@@ -274,7 +274,9 @@ class Node:
                         and request["destination"] == ip_packet.source_ip
                     ):
                         request["responded"] = True
-                        print(f"  Matched ping request sequence {ping_protocol.sequence}")
+                        print(
+                            f"  Matched ping request sequence {ping_protocol.sequence}"
+                        )
                         print(f"  Reply data: {ping_protocol.data}")
                     else:
                         print(

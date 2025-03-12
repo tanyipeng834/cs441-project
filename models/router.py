@@ -66,7 +66,7 @@ class RouterNode(Node):
         """Set the IPs that belong to this network interface"""
         self.network_ips = set(network_ips)
 
-    def process_ip_packet(self, ip_packet, source_mac):
+    def process_ip_packet(self, ip_packet):
         """Process an IP packet received on this interface"""
         print(
             f"Interface {self.mac_address} received IP packet from 0x{ip_packet.source_ip:02X} to 0x{ip_packet.dest_ip:02X}"
@@ -76,25 +76,6 @@ class RouterNode(Node):
         # If the packet is for this interface
         if ip_packet.dest_ip == self.ip_address:
             print(f"  Packet is for this interface {self.mac_address}")
-
-            # Handle ping protocol
-            # if ip_packet.protocol == Node.PROTOCOL_PING:
-            #     # Check if the data already contains "REPLY:" to prevent infinite loop
-            #     if not ip_packet.data.startswith("REPLY:"):
-            #         print(f"  Ping request to router, sending reply")
-            #         reply_data = f"REPLY: {ip_packet.data}"
-            #         # Create reply packet
-            #         reply_packet = IPPacket(self.ip_address, ip_packet.source_ip,
-            #                             Node.PROTOCOL_PING, reply_data)
-            #         # Get destination MAC from our ARP table
-            #         if ip_packet.source_ip in self.arp_table:
-            #             dest_mac = self.arp_table[ip_packet.source_ip]
-            #             # Send reply
-            #             self.send_ip_packet(reply_packet, dest_mac)
-            #         else:
-            #             print(f"  ERROR: No ARP entry for 0x{ip_packet.source_ip:02X}")
-            #     else:
-            #         print(f"  Ping reply received")
         else:
             # Otherwise let the router handle it
             if self.router:

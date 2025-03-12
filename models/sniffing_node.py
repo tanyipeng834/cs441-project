@@ -80,7 +80,7 @@ class SniffingNode(Node):
                 try:
                     # Try to parse as IP packet
                     ip_packet = IPPacket.decode(data)
-                    self.process_ip_packet(ip_packet, source_mac)
+                    self.process_ip_packet(ip_packet)
                 except:
                     # If it's not an IP packet, just treat as raw data
                     print(f"  Data: {data}")
