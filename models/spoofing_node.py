@@ -5,6 +5,10 @@ from models.ping_protocol import PingProtocol
 
 class SpoofingNode(Node):
     # Override the send_ip_packet so that we can spoof the ip packet.
+    def __init__(self, mac_address, ip_address, port, network, default_gateway=None):
+        super().__init__(mac_address, ip_address, port, network, default_gateway)
+        self.register_spoofing_commands()
+        self.spoof = False
     def send_spoof_ip_packet(self, source_ip, destination_ip, protocol, data):
         """
         Send an IP packet by encapsulating it in an Ethernet frame
@@ -38,6 +42,28 @@ class SpoofingNode(Node):
                 self.send_frame(destination_mac, packet_data)
             else:
                 print(f"No route to host 0x{destination_ip:02X}")
+    
+    def register_spoofing_commands(self):
+        @self.command("spoof", "<on/off> - Impersonate Node 3 to Ping Node 1 ")
+        def spoof_command(self,args):
+            if not args:
+                    print("Invalid input. Usage: spoof <on/off>")
+                    return
+
+            if args[0].lower() == "on":
+                if self.spoof:
+                    print("Spoofing mode already enabled.")
+                else:
+                    self.spoof = True
+                    print(f"Spoofing Mode enabled")
+            elif args[0].lower() == "off":
+                if not self.spoof:
+                    print("Spoofing Mode already disabled")
+                else:
+                    self.spoof = False
+                    print(f"Spoofing Mode disabled")
+            
+        
 
     def send_echo(self, destination_ip, data="PING"):
         """
@@ -53,7 +79,7 @@ class SpoofingNode(Node):
         # Create Ping Protocol Echo Request
 
         # Send the Ping Protocol packet encapsulated in an IP packe
-        if destination_ip == 0x2A:
+        if self.spoof and destination_ip == 0x2A:
             ping_protocol = PingProtocol.create_echo_request(
                 identifier=0x2B,  # Use our IP as the identifier
                 sequence=self.ping_sequence,
