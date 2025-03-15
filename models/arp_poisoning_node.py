@@ -63,6 +63,7 @@ class ARPPoisoningNode(Node):
                     self.process_ip_packet(ip_packet, source_mac)
                 except Exception:
                     print(f"  Data: {data}")
+
             elif destination_mac == self.mac_address:
                 print(
                     f"Node {self.mac_address} received Ethernet frame from {source_mac}"
@@ -80,8 +81,9 @@ class ARPPoisoningNode(Node):
                     # Try to parse as IP packet
                     try:
                         ip_packet = IPPacket.decode(data)
-                        self.process_ip_packet(ip_packet)
-                    except Exception:
+                        # Use base class method to process IP packet
+                        super().process_ip_packet(ip_packet)
+                    except Exception as e:
                         print(f"  Data: {data}")
 
             else:
