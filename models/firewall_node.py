@@ -15,8 +15,6 @@ class FirewallNode(Node):
         # Register additional commands
         self.register_firewall_commands()
 
-        print(f"Firewall node {mac_address} initialised.")
-
     def drop_ip(self, ip_address):
         """
         Drop all IP packets from an IP address

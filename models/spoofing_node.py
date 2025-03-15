@@ -9,6 +9,7 @@ class SpoofingNode(Node):
         super().__init__(mac_address, ip_address, port, network, default_gateway)
         self.register_spoofing_commands()
         self.spoof = False
+
     def send_spoof_ip_packet(self, source_ip, destination_ip, protocol, data):
         """
         Send an IP packet by encapsulating it in an Ethernet frame
@@ -42,13 +43,13 @@ class SpoofingNode(Node):
                 self.send_frame(destination_mac, packet_data)
             else:
                 print(f"No route to host 0x{destination_ip:02X}")
-    
+
     def register_spoofing_commands(self):
         @self.command("spoof", "<on/off> - Impersonate Node 3 to Ping Node 1 ")
-        def spoof_command(self,args):
+        def spoof_command(self, args):
             if not args:
-                    print("Invalid input. Usage: spoof <on/off>")
-                    return
+                print("Invalid input. Usage: spoof <on/off>")
+                return
 
             if args[0].lower() == "on":
                 if self.spoof:
@@ -62,8 +63,6 @@ class SpoofingNode(Node):
                 else:
                     self.spoof = False
                     print(f"Spoofing Mode disabled")
-            
-        
 
     def send_echo(self, destination_ip, data="PING"):
         """

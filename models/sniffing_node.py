@@ -18,8 +18,6 @@ class SniffingNode(Node):
         # Register additional commands
         self.register_sniffing_commands()
 
-        print(f"Malicious node {mac_address} initialised.")
-
     def register_sniffing_commands(self):
         """Register commands specific to the sniffing node"""
 
@@ -54,14 +52,7 @@ class SniffingNode(Node):
         Override the process_frame method to sniff all frames on the network
         when in promiscuous mode, not just those addressed to this node.
         """
-        if len(frame) < 5:
-            print(f"Node {self.mac_address} received invalid frame: {frame}")
-            return
-
-        source_mac = frame[0:2]
-        destination_mac = frame[2:4]
-        data_length = ord(frame[4:5])
-        data = frame[5 : 5 + data_length]
+        source_mac, destination_mac, data_length, data = self.decode_frame(frame)
 
         # In promiscuous mode, capture all frames
         if self.promiscuous_mode:
@@ -98,30 +89,8 @@ class SniffingNode(Node):
                 self.sniffed_packets.append(sniffed_info)
                 print(f"SNIFFED: Frame from {source_mac} to {destination_mac}")
 
-        # Process frame normally for frames addressed to this node
-        if destination_mac == self.mac_address:
-            print(f"Node {self.mac_address} received Ethernet frame from {source_mac}")
-
-            # Check if it contains an IP packet (at least 4 bytes for IP header)
-            if len(data) >= 4:
-                try:
-                    # Try to parse as IP packet
-                    ip_packet = IPPacket.decode(data)
-                    self.process_ip_packet(ip_packet)
-                except:
-                    # If it's not an IP packet, just treat as raw data
-                    print(f"  Data: {data}")
-        else:
-            # Frame is not addressed to this node - drop it
-            # (even though we might have sniffed it in promiscuous mode)
-            if self.promiscuous_mode:
-                print(
-                    f"Node {self.mac_address} sniffed but dropped frame from {source_mac} intended for {destination_mac}"
-                )
-            else:
-                print(
-                    f"Node {self.mac_address} dropped frame from {source_mac} intended for {destination_mac}"
-                )
+        # Process the frame as normal
+        super().process_frame(frame)
 
     def display_sniffed_packets(self):
         """Display all sniffed packets"""

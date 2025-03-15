@@ -1,11 +1,11 @@
 import sys
 import atexit
-from models.node import Node
+from models.arp_poisoning_node import ARPPoisoningNode
 
 
 if __name__ == "__main__":
     # Create Node 1 with IP address 0x1A
-    node = Node("N2", 0x2A, 50002, ["N2", "N3", "R2"], default_gateway="R2")
+    node = ARPPoisoningNode("N2", 0x2A, 50002, ["N2", "N3", "R2"], default_gateway="R2")
 
     # Initialize ARP table - Node2 knows about itself, Node3, and R2 in its network
     node.init_arp_table(

@@ -2,6 +2,7 @@ import socket
 import threading
 import sys
 import traceback
+from .arp_packet import ARPPacket
 from .ethernet_frame import EthernetFrame
 from .ip_packet import IPPacket
 from .ping_protocol import PingProtocol
@@ -200,33 +201,54 @@ class Node:
                 print("Error in listen_for_frames:")
                 traceback.print_exc()
 
+    def decode_frame(self, frame):
+        """Decode an Ethernet frame"""
+        try:
+            if len(frame) < 5:
+                raise ValueError("Frame must be at least 5 bytes long")
+
+            source_mac = frame[0:2]
+            destination_mac = frame[2:4]
+            data_length = ord(frame[4:5])
+            data = frame[5 : 5 + data_length]
+
+            return source_mac, destination_mac, data_length, data
+        except Exception:
+            raise
+
     def process_frame(self, frame):
         """Process a received Ethernet frame"""
-        if len(frame) < 5:
-            print(f"Node {self.mac_address} received invalid frame: {frame}")
-            return
+        try:
+            source_mac, destination_mac, _, data = self.decode_frame(frame)
 
-        source_mac = frame[0:2]
-        destination_mac = frame[2:4]
-        data_length = ord(frame[4:5])
-        data = frame[5 : 5 + data_length]
+            if destination_mac == self.mac_address:
+                print(
+                    f"Node {self.mac_address} received Ethernet frame from {source_mac}"
+                )
 
-        if destination_mac == self.mac_address:
-            print(f"Node {self.mac_address} received Ethernet frame from {source_mac}")
-
-            # Check if it contains an IP packet (at least 4 bytes for IP header)
-            if len(data) >= 4:
-                try:
+                # Check if it's an ARP packet (starts with 'ARP')
+                if data.startswith("ARP"):
+                    try:
+                        arp_packet = ARPPacket.decode(data)
+                        print(f"  Received ARP packet: {arp_packet}")
+                        self.process_arp_packet(arp_packet)
+                    except ValueError as e:
+                        print(f"  Error decoding ARP packet: {e}")
+                else:
                     # Try to parse as IP packet
-                    ip_packet = IPPacket.decode(data)
-                    self.process_ip_packet(ip_packet)
-                except:
-                    # If it's not an IP packet, just treat as raw data
-                    print(f"  Data: {data}")
-        else:
-            print(
-                f"Node {self.mac_address} dropped frame from {source_mac} intended for {destination_mac}"
-            )
+                    try:
+                        ip_packet = IPPacket.decode(data)
+                        self.process_ip_packet(ip_packet)
+                    except Exception:
+                        print(f"  Data: {data}")
+
+            else:
+                print(
+                    f"Node {self.mac_address} dropped frame from {source_mac} intended for {destination_mac}"
+                )
+
+        except Exception as e:
+            print(f"Error processing frame: {frame} - {e}")
 
     def process_ip_packet(self, ip_packet: IPPacket):
         """Process a received IP packet"""
@@ -308,15 +330,64 @@ class Node:
             print(f"  Error processing Ping Protocol packet: {e}")
             traceback.print_exc()
 
+    def process_arp_packet(self, arp_packet: ARPPacket):
+        """Process an ARP Packet received in an Ethernet frame"""
+
+        # Update our ARP table with the received mapping
+        old_mac = self.arp_table.get(arp_packet.source_ip)
+        self.arp_table[arp_packet.source_ip] = arp_packet.source_mac
+
+        if old_mac and old_mac != arp_packet.source_mac:
+            print(
+                f"  !! ARP entry changed for IP 0x{arp_packet.source_ip:02X}: {old_mac} -> {arp_packet.source_mac}"
+            )
+        else:
+            print(
+                f"  Updated ARP table: IP 0x{arp_packet.source_ip:02X} -> {arp_packet.source_mac}"
+            )
+
+    def process_arp_message(self, source_mac, data):
+        """Process an ARP message received in an Ethernet frame"""
+        try:
+            # Parse the ARP message
+            # Format: ARP_RESPONSE:IP:MAC
+            parts = data.split(":")
+            if len(parts) != 3 or parts[0] != "ARP":
+                print(f"Invalid ARP message format: {data}")
+                return
+
+            advertised_ip = int(parts[1], 16)
+            advertised_mac = parts[2]
+
+            # Update our ARP table with the received mapping
+            old_mac = self.arp_table.get(advertised_ip)
+            self.arp_table[advertised_ip] = advertised_mac
+
+            if old_mac and old_mac != advertised_mac:
+                print(
+                    f"!! ARP entry changed for IP 0x{advertised_ip:02X}: {old_mac} -> {advertised_mac}"
+                )
+            else:
+                print(
+                    f"Updated ARP table: IP 0x{advertised_ip:02X} -> {advertised_mac}"
+                )
+
+        except Exception as e:
+            print(f"Error processing ARP message: {e}")
+
     # Command registration decorator
-    def command(self, name, help_text, default = False):
+    def command(self, name, help_text, default=False):
         def decorator(func):
             @wraps(func)
             def wrapper(*args, **kwargs):
                 return func(*args, **kwargs)
 
             # Register the command in the command registry
-            self.commands[name] = {"handler": wrapper, "help": help_text, "default": default}
+            self.commands[name] = {
+                "handler": wrapper,
+                "help": help_text,
+                "default": default,
+            }
             return wrapper
 
         return decorator
@@ -329,7 +400,7 @@ class Node:
             if len(args) < 2:
                 print("Invalid input. Usage: <destination> <message>")
                 return
-            
+
             destination = args[0]
 
             if destination not in self.VALID_DESTINATION:
@@ -345,14 +416,14 @@ class Node:
             if len(args) < 2:
                 print("Invalid input. Usage: <destination> <protocol> <message>")
                 return
-            
+
             destination = int(args[0], 16)
             protocol = int(args[1])
             data = " ".join(args[2:])
             self.send_ip_packet(destination, protocol, data)
 
         @self.command("ping", "<ip_hex> - Send a ping to the specified IP", True)
-        def cmd_ping(self, args):
+        def cmd_ping(self: Node, args):
             if not args:
                 print("Invalid input. Usage: ping <ip_hex>")
                 return
