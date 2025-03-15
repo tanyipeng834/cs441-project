@@ -324,6 +324,33 @@ class Node:
     def register_default_commands(self):
         """Register the default commands"""
 
+        @self.command("ef", " <destination> <message> - Send raw Ethernet frame", True)
+        def cmd_send_frame(self: Node, args):
+            if len(args) < 2:
+                print("Invalid input. Usage: <destination> <message>")
+                return
+            
+            destination = args[0]
+
+            if destination not in self.VALID_DESTINATION:
+                print(f"Invalid destination: {destination}")
+                return
+
+            data = " ".join(args[1:])
+            self.send_frame(destination, data)
+            print(f"Ethernet frame sent to {destination} with data: {data}")
+
+        @self.command("ip", "<destination> <protocol> <message> - Send IP packet", True)
+        def cmd_send_ip_packet(self: Node, args):
+            if len(args) < 2:
+                print("Invalid input. Usage: <destination> <protocol> <message>")
+                return
+            
+            destination = int(args[0], 16)
+            protocol = int(args[1])
+            data = " ".join(args[2:])
+            self.send_ip_packet(destination, protocol, data)
+
         @self.command("ping", "<ip_hex> - Send a ping to the specified IP", True)
         def cmd_ping(self, args):
             if not args:
@@ -339,13 +366,13 @@ class Node:
                 print("Invalid IP address. Please enter a valid hex value (e.g., 2A)")
 
         @self.command("arp", "- Display the ARP table", True)
-        def cmd_arp(self, args):
+        def cmd_arp(self: Node, args):
             print("ARP Table:")
             for ip, mac in self.arp_table.items():
                 print(f"  0x{ip:02X} -> {mac}")
 
         @self.command("help", "- Show this help message", True)
-        def cmd_help(self, args):
+        def cmd_help(self: Node, args):
             self.display_help()
 
         @self.command("q", "- Exit", True)
@@ -358,9 +385,6 @@ class Node:
             f"{self.mac_address} started with IP 0x{self.ip_address:02X} ({self.ip_address})"
         )
         print("Available commands:")
-
-        # Display the raw frame sending help
-        print("  <destination> <message> - Send raw Ethernet frame")
 
         # Display help for registered commands
         # Show non-default commands first
@@ -394,21 +418,8 @@ class Node:
                     if result is False:  # Command signals to exit
                         print("Exiting...")
                         break
-
-                # Handle raw frame sending (original functionality)
-                elif cmd in self.VALID_DESTINATION:
-                    if not args:
-                        print("Invalid input. Please provide data.")
-                        continue
-
-                    destination = cmd
-                    data = " ".join(args)
-
-                    self.send_frame(destination, data)
-                    print(f"Ethernet frame sent to {destination} with data: {data}")
-
                 else:
-                    print("Invalid command or destination.")
+                    print("Invalid command")
                     print("Use 'help' to see available commands")
 
         except KeyboardInterrupt:
