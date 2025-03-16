@@ -24,6 +24,14 @@ class Node:
 
         # ARP Table: Maps IP addresses to MAC addresses
         self.arp_table = {}
+        self.port_mapping ={
+            "N1": 50001,
+            "N2" : 50002,
+             "N3" : 50003,
+             "R1" : 50004,
+             "R2" : 50005
+             
+        }
 
         self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         try:
@@ -173,13 +181,9 @@ class Node:
 
     def process_node_mac(self, mac_address):
         """Convert MAC address to port number"""
-        if mac_address[-2] == "R":
-            # Router ports are BASE_PORT + 3 + router_number
-            port = Node.BASE_PORT + 3 + int(mac_address[-1])
-        else:
-            # Node ports are BASE_PORT + node_number
-            port = Node.BASE_PORT + int(mac_address[-1])
-        return port
+        
+        
+        return self.port_mapping[mac_address]
 
     def listen_for_frames(self):
         """Listen for incoming Ethernet frames"""
