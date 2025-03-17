@@ -1,6 +1,7 @@
 import sys
 import atexit
 from models.router import Router, RouterNode,BGPRouterNode
+from models.ip_packet import IPPacket
 
 if __name__ == "__main__":
     # Create router with two nodes: R1 and R2
@@ -60,13 +61,17 @@ if __name__ == "__main__":
     print("Router started with nodes R1 (0x11) and R2 (0x21) and R3 (0x40)")
     print("Available commands:")
     print("  routes - Display the routing table")
+    print("  ipsec <ip> - Configure ipsec tunnel with another network")
     print("  arp - Display the ARP tables")
     print("  q - Exit")
 
     try:
         # Keep the main thread alive
         while True:
-            command = input("Router>> ")
+            user_input = input("Router>> ")
+            parts = user_input.split(" ")
+            command = parts[0]
+            args = parts[1:]
             if command.lower() == "q":
                 print("Shutting down router...")
                 break
@@ -82,8 +87,30 @@ if __name__ == "__main__":
                 print("  R2 node:")
                 for ip, mac in r2_node.arp_table.items():
                     print(f"    0x{ip:02X} -> {mac}")
+            elif command.lower() =="ipsec":
+                
+                if len(args) ==1:
+                    dest_ip = args[0]
+                    
+                    # used with udp
+                    source_ip = r3_node.ip_address
+                   
+                    dest_ip = int(dest_ip,16)
+                    if dest_ip not in r3_node.network_ips:
+                        print(" Network not available")
+                    else:
+                        ipsec_key_packet = IPPacket(source_ip,dest_ip,17,"IKE")
+                        r3_node.send_ip_packet(ipsec_key_packet,r3_node.network_ips[dest_ip][0],r3_node.network_ips[dest_ip][1])
+                        router.mutual_key_exchange(dest_ip)
+
+
+                    
+
+                else:
+                    print("Error: Invalid command syntax. Usage: ipsec <ip> " )
+
             else:
-                print("Unknown command. Available commands: routes, arp, q")
+                print("Unknown command. Available commands: routes, arp, q , ipsec")
     except KeyboardInterrupt:
         print("\nKeyboardInterrupt received. Shutting down router...")
     finally:
