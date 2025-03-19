@@ -61,7 +61,7 @@ if __name__ == "__main__":
     print("Router started with nodes R1 (0x11) and R2 (0x21) and R3 (0x40)")
     print("Available commands:")
     print("  routes - Display the routing table")
-    print("  ipsec <ip> - Configure ipsec tunnel with another network")
+    print("  ipsec <ip>  <mode> - Configure ipsec tunnel with another network")
     print("  arp - Display the ARP tables")
     print("  q - Exit")
 

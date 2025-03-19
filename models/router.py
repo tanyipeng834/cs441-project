@@ -4,7 +4,11 @@ from .ethernet_frame import EthernetFrame
 from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
 from cryptography.hazmat.backends import default_backend
-
+from .ipsec_packet import IPSecPacket
+from .ip_packet import IPPacket
+import hmac
+import hashlib
+import traceback
 
 class Router:
     """
@@ -20,9 +24,12 @@ class Router:
         """
         self.nodes = nodes
         self.routing_table = {}  # Maps destination IP to interface
-        self.key = None
+        self.cipher = None
         self.ipsec = False
         self.auth_tag = None
+        self.ipsec_mode =1
+        self.peer =None
+        self.aes_key = None
         
 
         # Start all nodes
@@ -54,21 +61,29 @@ class Router:
         seed_value = b"6c58f72c9dbb7adcd330cdb8b97a7261"
         initial_vector = b'\x1a\x2b\x3c\x4d\x5e\x6f\x70\x81\x92\xa3\xb4\xc5\xd6\xe7\xf8\x09'
         print("Exchange public parameters for shared key.")
+        self.peer = peer
         
         # Derive AES key using SHA-256 from the seed value
         hash_function = hashes.Hash(hashes.SHA256(), backend=default_backend())
         hash_function.update(seed_value)
-        aes_key = hash_function.finalize()
+        self.aes_key = hash_function.finalize()
 
         # Use AES-CBC mode with a random IV
-        self.key = Cipher(algorithms.AES(aes_key), modes.CBC(initial_vector), backend=default_backend())
+        self.cipher = Cipher(algorithms.AES(self.aes_key), modes.CBC(initial_vector), backend=default_backend())
         self.ipsec = True
         print("Shared symmetric key established.")
 
         print(f"IPsec Tunnel is established with 0x{peer:02X}")
+    def kill_tunnel(self,peer):
+        """Establish a shared AES key"""
+        self.cipher=None
+        self.aes_key = None
+        self.ipsec=False
+        self.peer = None
+        print(f"IPsec Tunnel is demolished with 0x{peer:02X}")
     
     def encrypt_data(self, text):
-        if not self.key:
+        if not self.cipher:
             raise ValueError("AES key has not been established.")
 
         
@@ -80,7 +95,7 @@ class Router:
         plaintext_padded = plaintext + bytes([padding_length] * padding_length)
 
         # Encrypt the data
-        encryptor = self.key.encryptor()
+        encryptor = self.cipher.encryptor()
         ciphertext = encryptor.update(plaintext_padded) + encryptor.finalize()
         
 
@@ -89,10 +104,10 @@ class Router:
 
     def decrypt_data(self, ciphertext):
         """Decrypt the data using the AES key in CBC mode."""
-        if not self.key:
+        if not self.cipher:
             raise ValueError("AES key has not been established.")
 
-        decryptor = self.key.decryptor()
+        decryptor = self.cipher.decryptor()
         decrypted_padded_text = decryptor.update(ciphertext) + decryptor.finalize()
 
         # Remove padding
@@ -100,9 +115,21 @@ class Router:
         decrypted_text = decrypted_padded_text[:-padding_length]
 
         return decrypted_text.decode("utf-8")
-
-
-
+    def compute_mac(self, data):
+        if not self.aes_key:
+            raise ValueError("AES key has not been established.")
+        
+        # The AES key used for HMAC, we assume it's already derived
+        key = self.aes_key
+        
+        
+        # Ensure the key is the right size for HMAC (SHA256 can take any size key)
+        
+        # Compute the MAC using HMAC with SHA-256
+        mac = hmac.new(key, data, hashlib.sha256).digest()
+        
+        
+        return mac
 
     def shutdown(self):
         """Shutdown all interfaces"""
@@ -202,6 +229,41 @@ class BGPRouterNode(Node):
 
     def process_ip_packet(self, ip_packet):
         """Process an IP packet received on this interface"""
+        
+        if self.router.ipsec:
+            # can only be ipsec packet if it is no ip packet.
+            
+            if not isinstance(ip_packet,IPPacket):
+                
+                ipSecPacket = IPSecPacket.decode(ip_packet)
+            
+                mac = self.router.compute_mac(ipSecPacket.ip_packet)
+                print(ipSecPacket)
+                print(mac)
+                if mac != ipSecPacket.mac:
+                    print("Integrity Check Failed, Discarding IP Packet.")
+                    return
+                print("Integrity Check passed ! Mac matches the one in the ip packet.")
+                if ipSecPacket.mode ==1:
+                    ip_packet = IPPacket.decode(self.router.decrypt_data(ipSecPacket.ip_packet))
+                else:
+                    ip_packet = IPPacket.decode(ipSecPacket.ip_packet)
+                print(ip_packet)
+        
+        
+        
+
+            
+        network_prefix = ip_packet.dest_ip & 0XC0
+        internal_ip = ip_packet.dest_ip &~0xC0
+
+
+            
+               
+
+
+
+
         print(
             f"Interface {self.mac_address} received IP packet from 0x{ip_packet.source_ip:02X} to 0x{ip_packet.dest_ip:02X}"
         )
@@ -249,6 +311,7 @@ class BGPRouterNode(Node):
         else:
            
             port_number, mac_address = self.network_ips[network_prefix]
+
             
            
             if port_number: 
@@ -268,12 +331,22 @@ class BGPRouterNode(Node):
             f"Interface {self.mac_address} sending IP packet from 0x{ip_packet.source_ip:02X} to 0x{ip_packet.dest_ip:02X}"
         )
         packet_data = ip_packet.encode()
+        if self.router.ipsec:
+            if self.router.ipsec_mode ==1:
+                
+
+                encrypted_packet_data = self.router.encrypt_data(packet_data)
+                mac = self.router.compute_mac(encrypted_packet_data)
+                
+                ipSecPacket = IPSecPacket(self.ip_address,self.router.peer,self.router.ipsec_mode,encrypted_packet_data,mac)
+                packet_data = ipSecPacket.encode()
+                
+                
         self.send_frame(port,packet_data,mac_address)
     def send_frame(self, destination_port, frame_data,mac_address):
         """
         Send an Ethernet frame thorough BGP routing policies 
         """
-        
         try:
             with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
                 s.connect((Node.HOST_IP, destination_port))
@@ -285,3 +358,65 @@ class BGPRouterNode(Node):
             print(
                 f"Error sending frame from {self.mac_address} to port {destination_port}: {e}"
             )
+    def process_frame(self, frame):
+        """Process a received Ethernet frame"""
+        
+        try:
+            source_mac = frame[0:2].decode('utf-8')  
+            
+            destination_mac = frame[2:4].decode('utf-8')
+            
+            
+            if self.router.ipsec:
+                data = frame[5:]
+            else:
+                data = frame[5:].decode('utf-8')
+
+            
+            
+           
+
+            if destination_mac == self.mac_address:
+                print(
+                    f"Node {self.mac_address} received Ethernet frame from {source_mac}"
+                )
+
+                # Check if it's an ARP packet (starts with 'ARP')
+                
+                    # Try to parse as IP packet
+                try:
+                    data  = frame[5:].decode('utf-8')
+                    ip_packet = IPPacket.decode(data)
+                    self.process_ip_packet(ip_packet)    
+                except UnicodeDecodeError:
+                    data = frame[5:]
+                    # if ip sec
+                    self.process_ip_packet(data)
+                    
+
+            else:
+                print(
+                    f"Node {self.mac_address} dropped frame from {source_mac} intended for {destination_mac}"
+                )
+
+        except Exception as e:
+            print(f"Error processing frame: {frame} - {e}")
+    def listen_for_frames(self):
+        """Listen for incoming Ethernet frames"""
+        while self.is_running:
+            try:
+                conn, addr = self.sock.accept()
+                with conn:
+                    raw_data = conn.recv(2 + 2 + 1 + Node.MAX_DATA_LENGTH)
+                    if not raw_data:
+                        continue  # Connection closed or no data
+                    self.process_frame(raw_data)
+                   
+            except OSError:
+                # This can happen if the socket is closed while waiting for accept()
+                if self.is_running:
+                    print(f"Node {self.mac_address} socket accept() error.")
+                break
+            except Exception:
+                print("Error in listen_for_frames:")
+                traceback.print_exc()
