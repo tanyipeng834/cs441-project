@@ -11,7 +11,7 @@ if __name__ == "__main__":
     # Create router nodes first
     r1_node = RouterNode("R1", 0x11, 50004, ["N1", "R1"])
     r2_node = RouterNode("R2", 0x21, 50005, ["N2", "N3", "R2"])
-    r3_node = BGPRouterNode("R3",0x40,50006)
+    r3_node = RouterNode("R3",0X31,50006,["R3","R4"])
     
     
     
@@ -36,7 +36,21 @@ if __name__ == "__main__":
             0x21: "R2",  # Self-reference
         
         }
+    
     )
+    r3_node.init_network_ips([0x41])
+
+    r3_node.init_arp_table(
+        {
+            0x41 : "R4",
+            0x21: "R3",  # Self-reference
+            0x5A :"R4"
+
+        
+        }
+    )
+
+
 
 
     # Initialize routing table
@@ -46,14 +60,12 @@ if __name__ == "__main__":
             0x1A: r1_node,  # Route to N1 via R1 node
             0x2A: r2_node,  # Route to N2 via R2 node
             0x2B: r2_node,  # Route to N3 via R2 node
-            "*" : r3_node   # send to bgp interface to process extenral routes.
+            0x41 : r3_node, 
+            0x5A : r3_node
         }
     )
 
-    r3_node.init_bgp_route({
-        0x80 : [50007,"R4"]
-    })
-
+    
     
     # Register shutdown function to clean up on exit
     atexit.register(router.shutdown)
@@ -62,6 +74,7 @@ if __name__ == "__main__":
     print("Available commands:")
     print("  routes - Display the routing table")
     print("  ipsec <ip>  <mode> - Configure ipsec tunnel with another network")
+    print("  ipsec off - Configure ipsec tunnel with another network")
     print("  arp - Display the ARP tables")
     print("  q - Exit")
 
@@ -93,15 +106,15 @@ if __name__ == "__main__":
                     dest_ip = args[0]
                     
                     # used with udp
-                    source_ip = r3_node.ip_address
+                    # source_ip = r3_node.ip_address
                    
-                    dest_ip = int(dest_ip,16)
-                    if dest_ip not in r3_node.network_ips:
-                        print(" Network not available")
-                    else:
-                        ipsec_key_packet = IPPacket(source_ip,dest_ip,17,"IKE")
-                        r3_node.send_ip_packet(ipsec_key_packet,r3_node.network_ips[dest_ip][0],r3_node.network_ips[dest_ip][1])
-                        router.mutual_key_exchange(dest_ip)
+                    # dest_ip = int(dest_ip,16)
+                    # if dest_ip not in r3_node.network_ips:
+                    #     print(" Network not available")
+                    # else:
+                    #     ipsec_key_packet = IPPacket(source_ip,dest_ip,17,"IKE")
+                    #     r3_node.send_ip_packet(ipsec_key_packet,r3_node.network_ips[dest_ip][0],r3_node.network_ips[dest_ip][1])
+                    #     router.mutual_key_exchange(dest_ip)
 
 
                     
