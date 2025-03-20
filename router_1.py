@@ -70,10 +70,10 @@ if __name__ == "__main__":
     # Register shutdown function to clean up on exit
     atexit.register(router.shutdown)
 
-    print("Router started with nodes R1 (0x11) and R2 (0x21) and R3 (0x40)")
+    print("Router started with nodes R1 (0x11) and R2 (0x21) and R3 (0x31)")
     print("Available commands:")
     print("  routes - Display the routing table")
-    print("  ipsec <ip>  <mode> - Configure ipsec tunnel with another network")
+    print("  ipsec <mode> <ip> - Configure ipsec tunnel with another network")
     print("  ipsec off - Configure ipsec tunnel with another network")
     print("  arp - Display the ARP tables")
     print("  q - Exit")
@@ -102,25 +102,35 @@ if __name__ == "__main__":
                     print(f"    0x{ip:02X} -> {mac}")
             elif command.lower() =="ipsec":
                 
-                if len(args) ==1:
-                    dest_ip = args[0]
-                    
+                if len(args) ==2:
+                    mode = args[0].upper()
+                    if mode == "AH":
+                        mode =0
+                    elif mode == "ESP":
+                        mode =1
+                    else:
+                        print("Mode must be either AH or ESP")
+                        break
+                    dest_ip = args[1]
                     # used with udp
-                    # source_ip = r3_node.ip_address
-                   
-                    # dest_ip = int(dest_ip,16)
-                    # if dest_ip not in r3_node.network_ips:
-                    #     print(" Network not available")
-                    # else:
-                    #     ipsec_key_packet = IPPacket(source_ip,dest_ip,17,"IKE")
-                    #     r3_node.send_ip_packet(ipsec_key_packet,r3_node.network_ips[dest_ip][0],r3_node.network_ips[dest_ip][1])
-                    #     router.mutual_key_exchange(dest_ip)
-
-
+                    source_ip = r3_node.ip_address
+                    
+                    dest_ip = int(dest_ip,16)
+                    if dest_ip not in r3_node.network_ips:
+                        print(" Network not available")
+                    else:
+                        ip_packet = IPPacket(source_ip,dest_ip,17,f"IKE{mode}")
+                        r3_node.send_ip_packet(ip_packet,r3_node.arp_table[dest_ip])
+                        router.mutual_key_exchange(int(mode),dest_ip)
                     
 
                 else:
-                    print("Error: Invalid command syntax. Usage: ipsec <ip> " )
+                    if len(args) ==1:
+                        ip_packet = IPPacket(source_ip,dest_ip,17,"IKE")
+                        r3_node.send_ip_packet(ip_packet,r3_node.arp_table[dest_ip])
+                        router.kill_tunnel()
+                    else:
+                        print("Error: Invalid command syntax. Usage: ipsec <mode> <ip> " )
 
             else:
                 print("Unknown command. Available commands: routes, arp, q , ipsec")

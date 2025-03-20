@@ -27,7 +27,7 @@ class Router:
         self.cipher = None
         self.ipsec = False
         self.auth_tag = None
-        self.ipsec_mode =1
+        self.ipsec_mode =None
         self.peer =None
         self.aes_key = None
         
@@ -55,12 +55,13 @@ class Router:
         
 
         # No internal route found, try bgp interface for extenral routing
-        return self.routing_table["*"]
-    def mutual_key_exchange(self,peer):
+        return None
+    def mutual_key_exchange(self,mode,peer):
         """Establish a shared AES key"""
         seed_value = b"6c58f72c9dbb7adcd330cdb8b97a7261"
         initial_vector = b'\x1a\x2b\x3c\x4d\x5e\x6f\x70\x81\x92\xa3\xb4\xc5\xd6\xe7\xf8\x09'
         print("Exchange public parameters for shared key.")
+        self.ipsec_mode = mode
         self.peer = peer
         
         # Derive AES key using SHA-256 from the seed value
@@ -73,14 +74,17 @@ class Router:
         self.ipsec = True
         print("Shared symmetric key established.")
 
-        print(f"IPsec Tunnel is established with 0x{peer:02X}")
-    def kill_tunnel(self,peer):
+        print(f"IPsec Tunnel is established with 0x{self.peer:02X}")
+    def kill_tunnel(self):
         """Establish a shared AES key"""
         self.cipher=None
         self.aes_key = None
         self.ipsec=False
+        print(f"IPsec Tunnel is demolished with {self.peer:02x}")
         self.peer = None
-        print(f"IPsec Tunnel is demolished with 0x{peer:02X}")
+        self.ipsec_mode = None
+        
+        return 
     
     def encrypt_data(self, text):
         if not self.cipher:
@@ -164,9 +168,26 @@ class RouterNode(Node):
         )
         print(f"  Protocol: {ip_packet.protocol}, Data: {ip_packet.data}")
 
+
+       
+        print(ip_packet.data)
         # If the packet is for this interface
         if ip_packet.dest_ip == self.ip_address:
             print(f"  Packet is for this interface {self.mac_address}")
+            if ip_packet.data.startswith("IKE") :
+                
+                if self.router:
+                    
+                    if not self.router.ipsec:
+                        print("I am here now")
+                        print(ip_packet.data[-1])
+                        print(ip_packet.source_ip)
+                        
+                        self.router.mutual_key_exchange(int(ip_packet.data[-1]),ip_packet.source_ip)
+                
+                    else:
+                        self.router.kill_tunnel()
+                return
         else:
             # Otherwise let the router handle it
             if self.router:
