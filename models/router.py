@@ -80,7 +80,7 @@ class Router:
         self.cipher=None
         self.aes_key = None
         self.ipsec=False
-        print(f"IPsec Tunnel is demolished with {self.peer:02x}")
+        print(f"IPsec Tunnel is demolished with 0x{self.peer:02x}")
         self.peer = None
         self.ipsec_mode = None
         
@@ -173,16 +173,12 @@ class RouterNode(Node):
                 ipSecPacket = IPSecPacket.decode(ip_packet)
 
                 mac = self.router.compute_mac(ipSecPacket.ip_packet)
-                print(ipSecPacket)
-                print(mac)
                 if mac != ipSecPacket.mac:
                     print("Integrity Check Failed. MAC Computed does not match the one in the packet. Discarding IP Packet.")
                     return
                 print("Integrity Check passed ! MAC matches the one in the ip packet.")
                 if ipSecPacket.mode ==1:
-                    
                     ip_packet = IPPacket.decode(self.router.decrypt_data(ipSecPacket.ip_packet))
-                    print("data decrypted")
                     print(ip_packet)
                 else:
                     ip_packet = IPPacket.decode(ipSecPacket.ip_packet)
@@ -303,7 +299,7 @@ class RouterNode(Node):
                     self.process_ip_packet(ip_packet)
                 except Exception:
                     self.process_ip_packet(data)
-                    print(f"  Data: {data}")
+                    
 
         else:
             print(
