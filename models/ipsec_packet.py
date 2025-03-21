@@ -11,9 +11,7 @@ class IPSecPacket:
     def encode(self):
     
         encoded_data = bytes([self.source_ip, self.dest_ip, self.mode])
-        print(f"encoded data :{encoded_data}")
-        print(f"ip_packet:{self.ip_packet}")
-        print(f"mac:{self.mac}")
+        
         # If mode is 1 (ESP mode), ip_packet is already bytes, otherwise, we need to convert it to bytes
         if self.mode == 1:
             # In ESP mode, ip_packet is already in bytes

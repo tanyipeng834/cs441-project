@@ -198,7 +198,11 @@ class Node:
                     raw_data = conn.recv(2 + 2 + 1 + Node.MAX_DATA_LENGTH)
                     if not raw_data:
                         continue  # Connection closed or no data
-                    frame = raw_data.decode("utf-8")
+                    try:
+                        frame = raw_data.decode("utf-8")
+                    except UnicodeDecodeError:
+                        frame = raw_data
+
                     self.process_frame(frame)
             except OSError:
                 # This can happen if the socket is closed while waiting for accept()
@@ -257,6 +261,9 @@ class Node:
 
         except Exception as e:
             print(f"Error processing frame: {frame} - {e}")
+
+
+        
 
     def process_ip_packet(self, ip_packet: IPPacket):
         """Process a received IP packet"""
