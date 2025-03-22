@@ -171,15 +171,17 @@ class RouterNode(Node):
             if not isinstance(ip_packet,IPPacket):
                 # This means that this is a ipsec packet.
                 ipSecPacket = IPSecPacket.decode(ip_packet)
+                
 
                 mac = self.router.compute_mac(ipSecPacket.ip_packet)
+                print(ipSecPacket)
                 if mac != ipSecPacket.mac:
                     print("Integrity Check Failed. MAC Computed does not match the one in the packet. Discarding IP Packet.")
                     return
                 print("Integrity Check passed ! MAC matches the one in the ip packet.")
                 if ipSecPacket.mode ==1:
                     ip_packet = IPPacket.decode(self.router.decrypt_data(ipSecPacket.ip_packet))
-                    print(ip_packet)
+                    
                 else:
                     ip_packet = IPPacket.decode(ipSecPacket.ip_packet)
                     print(ip_packet)
