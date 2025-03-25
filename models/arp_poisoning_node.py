@@ -1,3 +1,4 @@
+import queue
 from models.node import Node
 from models.arp_packet import ARPPacket
 from models.ip_packet import IPPacket
@@ -60,7 +61,7 @@ class ARPPoisoningNode(Node):
                 # Try to parse as IP packet
                 try:
                     ip_packet = IPPacket.decode(data)
-                    self.process_ip_packet(ip_packet, source_mac)
+                    self.add_ip_packet_to_queue(ip_packet, source_mac)
                 except Exception:
                     print(f"  Data: {data}")
 
@@ -82,7 +83,7 @@ class ARPPoisoningNode(Node):
                     try:
                         ip_packet = IPPacket.decode(data)
                         # Use base class method to process IP packet
-                        super().process_ip_packet(ip_packet)
+                        super().add_ip_packet_to_queue(ip_packet)
                     except Exception as e:
                         print(f"  Data: {data}")
 
@@ -94,25 +95,23 @@ class ARPPoisoningNode(Node):
         except Exception as e:
             print(f"Error processing frame: {frame} - {e}")
 
-    def process_ip_packet(self, ip_packet: IPPacket, source_mac):
-        """Process a received IP packet, handling spoofed IP addresses"""
-
+    def add_ip_packet_to_queue(self, ip_packet: IPPacket, source_mac):
+        """Add an IP packet to the processing queue"""
         # Check if this packet is for our spoofed IP
         if ip_packet.dest_ip == self.poison_table[source_mac]:
             print(
-                f"  Received IP packet from Spoofed 0x{ip_packet.source_ip:02X} to 0x{ip_packet.dest_ip:02X}"
+                f"  Added IP packet from Spoofed 0x{ip_packet.source_ip:02X} to 0x{ip_packet.dest_ip:02X} to queue"
             )
-            print(f"  Protocol: {ip_packet.protocol}, Data length: {ip_packet.length}")
 
-            # Handle different protocols
-            if ip_packet.protocol == PingProtocol.PROTOCOL:
-                self.handle_ping_protocol(ip_packet)
-            else:
+            try:
+                self.queue.put_nowait(ip_packet)
+                current_size = self.queue.qsize()
+                print(f"Queue size: {current_size}/{self.queue.maxsize}")
+            except queue.Full:
                 print(
-                    f"  Unknown protocol: {ip_packet.protocol}, Data: {ip_packet.data}"
+                    f"  Queue full, dropping IP packet from 0x{ip_packet.source_ip:02X}"
                 )
-        else:
-            super().process_ip_packet(ip_packet, source_mac)
+                self.packets_dropped += 1
 
     def register_poisoning_commands(self):
         @self.command(

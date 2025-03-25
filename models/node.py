@@ -1,7 +1,9 @@
 import socket
 import threading
 import sys
+import time
 import traceback
+import queue
 from .arp_packet import ARPPacket
 from .ethernet_frame import EthernetFrame
 from .ip_packet import IPPacket
@@ -21,20 +23,21 @@ class Node:
         self.port = port
         self.network = network
         self.default_gateway = default_gateway  # MAC address of default gateway
+        self.queue = queue.Queue(maxsize=3)
+        self.packets_dropped = 0
 
         # ARP Table: Maps IP addresses to MAC addresses
         self.arp_table = {}
-        self.port_mapping ={
+        self.port_mapping = {
             "N1": 50001,
-            "N2" : 50002,
-             "N3" : 50003,
-             "R1" : 50004,
-             "R2" : 50005,
-             "N4" : 50009,
-             "R3" : 50006,
-             "R4" : 50007,
-             "R5" :50008,
-             
+            "N2": 50002,
+            "N3": 50003,
+            "R1": 50004,
+            "R2": 50005,
+            "N4": 50009,
+            "R3": 50006,
+            "R4": 50007,
+            "R5": 50008,
         }
 
         self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -58,6 +61,10 @@ class Node:
         # Start a non-daemon thread to listen for incoming frames
         self.listen_thread = threading.Thread(target=self.listen_for_frames)
         self.listen_thread.start()
+
+        # Start thread to process IP packets from the queue
+        self.process_thread = threading.Thread(target=self.process_queue)
+        self.process_thread.start()
 
         # Add a sequence counter for Ping Protocol messages
         self.ping_sequence = 0
@@ -185,8 +192,7 @@ class Node:
 
     def process_node_mac(self, mac_address):
         """Convert MAC address to port number"""
-        
-        
+
         return self.port_mapping[mac_address]
 
     def listen_for_frames(self):
@@ -250,7 +256,9 @@ class Node:
                     # Try to parse as IP packet
                     try:
                         ip_packet = IPPacket.decode(data)
-                        self.process_ip_packet(ip_packet)
+                        # Add IP packet to processing queue
+                        self.add_ip_packet_to_queue(ip_packet)
+
                     except Exception:
                         print(f"  Data: {data}")
 
@@ -262,12 +270,35 @@ class Node:
         except Exception as e:
             print(f"Error processing frame: {frame} - {e}")
 
+    def add_ip_packet_to_queue(self, ip_packet: IPPacket):
+        """Add an IP packet to the processing queue"""
+        try:
+            self.queue.put_nowait(ip_packet)
+            current_size = self.queue.qsize()
+            print(f"  Queue size: {current_size}/{self.queue.maxsize}")
+        except queue.Full:
+            print(
+                f"  Queue full, dropping IP packet from 0x{ip_packet.source_ip:02X}"
+            )
+            self.packets_dropped += 1
 
-        
+
+    def process_queue(self):
+        """Process IP packets in the queue"""
+        while self.is_running:
+            # Add delay to simulate processing time
+            time.sleep(1)
+            try:
+                ip_packet = self.queue.get_nowait()
+                if ip_packet:
+                    self.process_ip_packet(ip_packet)
+            except queue.Empty:
+                pass
+            except Exception:
+                pass
 
     def process_ip_packet(self, ip_packet: IPPacket):
         """Process a received IP packet"""
-
         if ip_packet.dest_ip == self.ip_address:
             print(
                 f"  Received IP packet from 0x{ip_packet.source_ip:02X} to 0x{ip_packet.dest_ip:02X}"
@@ -451,11 +482,32 @@ class Node:
             except ValueError:
                 print("Invalid IP address. Please enter a valid hex value (e.g., 2A)")
 
+        @self.command("pingspam", "<ip_hex> - Send a ping to the specified IP", True)
+        def cmd_ping_spam(self: Node, args):
+            if not args:
+                print("Invalid input. Usage: ping <ip_hex>")
+                return
+
+            try:
+                # Convert hex string to integer
+                dest_ip = int(args[0], 16)
+                # Rapidly send 10 pings
+                for _ in range(10):
+                    time.sleep(0.1)
+                    self.send_echo(dest_ip)
+            except ValueError:
+                print("Invalid IP address. Please enter a valid hex value (e.g., 2A)")
+
         @self.command("arp", "- Display the ARP table", True)
         def cmd_arp(self: Node, args):
             print("ARP Table:")
             for ip, mac in self.arp_table.items():
                 print(f"  0x{ip:02X} -> {mac}")
+
+        @self.command("stats", "- Display node statistics", True)
+        def cmd_stats(self: Node, args):
+            print(f"Node {self.mac_address} statistics:")
+            print(f"  Packets dropped: {self.packets_dropped}")
 
         @self.command("help", "- Show this help message", True)
         def cmd_help(self: Node, args):
@@ -525,3 +577,6 @@ class Node:
         # Join the listening thread to ensure it finishes
         if self.listen_thread.is_alive():
             self.listen_thread.join()
+
+        if self.process_thread.is_alive():
+            self.process_thread.join()

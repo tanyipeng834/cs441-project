@@ -9,6 +9,7 @@ from .ip_packet import IPPacket
 import hmac
 import hashlib
 import traceback
+from .arp_packet import ARPPacket
 
 class Router:
     """
@@ -254,6 +255,7 @@ class RouterNode(Node):
             ipSecPacket = IPSecPacket(self.ip_address,self.router.peer,self.router.ipsec_mode,packet_data,mac)
             packet_data = ipSecPacket.encode()    
         self.send_frame(dest_mac, packet_data)
+
     def process_frame(self, frame):
         """Process a received Ethernet frame"""
         
@@ -297,6 +299,7 @@ class RouterNode(Node):
             else:
                 # Try to parse as IP packet
                 try:
+                    # For router nodes, don't simulate processing time
                     ip_packet = IPPacket.decode(data)
                     self.process_ip_packet(ip_packet)
                 except Exception:
