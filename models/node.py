@@ -25,6 +25,7 @@ class Node:
         self.default_gateway = default_gateway  # MAC address of default gateway
         self.queue = queue.Queue(maxsize=3)
         self.packets_dropped = 0
+        self.sleep_event = threading.Event()
 
         # ARP Table: Maps IP addresses to MAC addresses
         self.arp_table = {}
@@ -287,7 +288,7 @@ class Node:
         """Process IP packets in the queue"""
         while self.is_running:
             # Add delay to simulate processing time
-            time.sleep(1)
+            self.sleep_event.wait(timeout=2)
             try:
                 ip_packet = self.queue.get_nowait()
                 if ip_packet:
@@ -569,6 +570,10 @@ class Node:
     def shutdown(self):
         """Shutdown the node and close connections"""
         self.is_running = False
+
+        # Stop sleep event
+        self.sleep_event.set()
+
         try:
             self.sock.close()
         except Exception as e:
@@ -579,4 +584,5 @@ class Node:
             self.listen_thread.join()
 
         if self.process_thread.is_alive():
+
             self.process_thread.join()
