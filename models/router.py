@@ -212,20 +212,13 @@ class RouterNode(Node):
                 return
         elif ip_packet.dest_ip == 0xFF:
             print(f"  Broadcast packet received on interface {self.mac_address}")
-            
+
             # Forward to all nodes in this interface's network
             for node_mac in self.network:
                 if node_mac != self.mac_address:  # Don't send back to self
                     print(f"  Forwarding broadcast to network node {node_mac}")
                     self.send_frame(node_mac, ip_packet.encode())
-            
-            # Also forward to other router interfaces to propagate across networks
-            if self.router:
-                for node in self.router.nodes:
-                    if node != self:  # Don't send to self
-                        print(f"  Forwarding broadcast to router interface {node.mac_address}")
-                        # Create a new packet for other networks if needed
-                        node.send_ip_packet(ip_packet, "FF")  # Use broadcast MAC
+
         else:
             # Otherwise let the router handle it
             if self.router:
