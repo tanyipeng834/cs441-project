@@ -195,7 +195,7 @@ class TCPNode(Node):
     def process_ip_packet(self, ip_packet):
         """Process a received IP packet, handling TCP if appropriate"""
 
-        if ip_packet.dest_ip == self.ip_address:
+        if ip_packet.dest_ip == self.ip_address or ip_packet.dest_ip == 0xFF:
             print(
                 f"  Received IP packet from 0x{ip_packet.source_ip:02X} to 0x{ip_packet.dest_ip:02X}"
             )

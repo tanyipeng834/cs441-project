@@ -1,6 +1,6 @@
 import sys
 import atexit
-from models.router import Router, RouterNode,BGPRouterNode
+from models.router import Router, RouterNode, BGPRouterNode
 from models.ip_packet import IPPacket
 
 if __name__ == "__main__":
@@ -9,23 +9,18 @@ if __name__ == "__main__":
     # Node R2: connected to network with N2 and N3
 
     # Create router nodes first
-    r1_node = RouterNode("R1", 0x11, 50004, ["N1", "R1"])
+    r1_node = RouterNode("R1", 0x11, 50004, ["N1", "N6", "R1"])
     r2_node = RouterNode("R2", 0x21, 50005, ["N2", "N3", "R2"])
-    r3_node = RouterNode("R3",0X31,50006,["R3","R4"])
-    
-    
-    
+    r3_node = RouterNode("R3", 0x31, 50006, ["R3", "R4"])
 
     # Create router with the nodes
-    router = Router([r1_node, r2_node,r3_node])
+    router = Router([r1_node, r2_node, r3_node])
 
     # Initialize network IPs for node R1
     r1_node.init_network_ips([0x1A])  # N1's IP is 0x1A
     # Initialize ARP table for node R1
-    r1_node.init_arp_table(
-        {0x1A: "N1", 0x11: "R1"}  # Map N1's IP to its MAC  # Self-reference
-    )
-    
+    r1_node.init_arp_table({0x1A: "N1", 0x1B: "N6", 0x11: "R1"})
+
     # Initialize network IPs for node R2
     r2_node.init_network_ips([0x2A, 0x2B])  # N2 and N3's IPs
     # Initialize ARP table for node R2
@@ -34,39 +29,23 @@ if __name__ == "__main__":
             0x2A: "N2",  # Map N2's IP to its MAC
             0x2B: "N3",  # Map N3's IP to its MAC
             0x21: "R2",  # Self-reference
-        
         }
-    
     )
     r3_node.init_network_ips([0x41])
 
-    r3_node.init_arp_table(
-        {
-            0x41 : "R4",
-            0x21: "R3",  # Self-reference
-            0x5A :"R4"
-
-        
-        }
-    )
-
-
-
+    r3_node.init_arp_table({0x41: "R4", 0x21: "R3", 0x5A: "R4"})  # Self-reference
 
     # Initialize routing table
     router.init_routing_table(
         {
-            
             0x1A: r1_node,  # Route to N1 via R1 node
             0x2A: r2_node,  # Route to N2 via R2 node
             0x2B: r2_node,  # Route to N3 via R2 node
-            0x41 : r3_node, 
-            0x5A : r3_node
+            0x41: r3_node,
+            0x5A: r3_node,
         }
     )
 
-    
-    
     # Register shutdown function to clean up on exit
     atexit.register(router.shutdown)
 
@@ -100,37 +79,38 @@ if __name__ == "__main__":
                 print("  R2 node:")
                 for ip, mac in r2_node.arp_table.items():
                     print(f"    0x{ip:02X} -> {mac}")
-            elif command.lower() =="ipsec":
-                
-                if len(args) ==2:
+            elif command.lower() == "ipsec":
+
+                if len(args) == 2:
                     mode = args[0].upper()
                     if mode == "AH":
-                        mode =0
+                        mode = 0
                     elif mode == "ESP":
-                        mode =1
+                        mode = 1
                     else:
                         print("Mode must be either AH or ESP")
                         break
                     dest_ip = args[1]
                     # used with udp
                     source_ip = r3_node.ip_address
-                    
-                    dest_ip = int(dest_ip,16)
+
+                    dest_ip = int(dest_ip, 16)
                     if dest_ip not in r3_node.network_ips:
                         print(" Network not available")
                     else:
-                        ip_packet = IPPacket(source_ip,dest_ip,17,f"IKE{mode}")
-                        r3_node.send_ip_packet(ip_packet,r3_node.arp_table[dest_ip])
-                        router.mutual_key_exchange(int(mode),dest_ip)
-                    
+                        ip_packet = IPPacket(source_ip, dest_ip, 17, f"IKE{mode}")
+                        r3_node.send_ip_packet(ip_packet, r3_node.arp_table[dest_ip])
+                        router.mutual_key_exchange(int(mode), dest_ip)
 
                 else:
-                    if len(args) ==1:
-                        ip_packet = IPPacket(source_ip,dest_ip,17,"IKE")
-                        r3_node.send_ip_packet(ip_packet,r3_node.arp_table[dest_ip])
+                    if len(args) == 1:
+                        ip_packet = IPPacket(source_ip, dest_ip, 17, "IKE")
+                        r3_node.send_ip_packet(ip_packet, r3_node.arp_table[dest_ip])
                         router.kill_tunnel()
                     else:
-                        print("Error: Invalid command syntax. Usage: ipsec <mode> <ip> " )
+                        print(
+                            "Error: Invalid command syntax. Usage: ipsec <mode> <ip> "
+                        )
 
             else:
                 print("Unknown command. Available commands: routes, arp, q , ipsec")

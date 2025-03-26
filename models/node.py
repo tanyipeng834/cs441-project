@@ -39,6 +39,7 @@ class Node:
             "R3": 50006,
             "R4": 50007,
             "R5": 50008,
+            "N6": 50010,
         }
 
         self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -47,7 +48,7 @@ class Node:
             # "Address already in use" in quick restarts
             self.sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
             self.sock.bind((Node.HOST_IP, self.port))
-            self.sock.listen(1)
+            self.sock.listen(10)
         except socket.error as e:
             print(f"Error starting node on port {self.port}: {e}")
             sys.exit(1)
@@ -84,6 +85,9 @@ class Node:
         self.arp_table = arp_entries
 
     def get_mac_for_ip(self, ip_address):
+        if ip_address == 0xFF:
+            return "FF"
+
         """Look up MAC address for a given IP"""
         if ip_address in self.arp_table:
             return self.arp_table[ip_address]
@@ -240,7 +244,7 @@ class Node:
         try:
             source_mac, destination_mac, _, data = self.decode_frame(frame)
 
-            if destination_mac == self.mac_address:
+            if destination_mac == self.mac_address or destination_mac == "FF":
                 print(
                     f"Node {self.mac_address} received Ethernet frame from {source_mac}"
                 )
@@ -278,11 +282,8 @@ class Node:
             current_size = self.queue.qsize()
             print(f"  Queue size: {current_size}/{self.queue.maxsize}")
         except queue.Full:
-            print(
-                f"  Queue full, dropping IP packet from 0x{ip_packet.source_ip:02X}"
-            )
+            print(f"  Queue full, dropping IP packet from 0x{ip_packet.source_ip:02X}")
             self.packets_dropped += 1
-
 
     def process_queue(self):
         """Process IP packets in the queue"""
@@ -300,7 +301,7 @@ class Node:
 
     def process_ip_packet(self, ip_packet: IPPacket):
         """Process a received IP packet"""
-        if ip_packet.dest_ip == self.ip_address:
+        if ip_packet.dest_ip == self.ip_address or ip_packet.dest_ip == 0xFF:
             print(
                 f"  Received IP packet from 0x{ip_packet.source_ip:02X} to 0x{ip_packet.dest_ip:02X}"
             )
@@ -469,33 +470,37 @@ class Node:
             data = " ".join(args[2:])
             self.send_ip_packet(destination, protocol, data)
 
-        @self.command("ping", "<ip_hex> - Send a ping to the specified IP", True)
+        @self.command(
+            "ping", "<ip_hex> [-c count] - Send ping(s) to the specified IP", True
+        )
         def cmd_ping(self: Node, args):
             if not args:
-                print("Invalid input. Usage: ping <ip_hex>")
+                print("Invalid input. Usage: ping <ip_hex> [-c count]")
                 return
 
             try:
-                # Convert hex string to integer
+                # Parse arguments
                 dest_ip = int(args[0], 16)
-                # Send Ping
-                self.send_echo(dest_ip)
-            except ValueError:
-                print("Invalid IP address. Please enter a valid hex value (e.g., 2A)")
+                count = 1  # Default to one ping
 
-        @self.command("pingspam", "<ip_hex> - Send a ping to the specified IP", True)
-        def cmd_ping_spam(self: Node, args):
-            if not args:
-                print("Invalid input. Usage: ping <ip_hex>")
-                return
+                # Check if -c flag is present
+                if len(args) >= 3 and args[1] == "-c":
+                    try:
+                        count = int(args[2])
+                        if count < 1:
+                            print("Count must be a positive number")
+                            return
+                    except ValueError:
+                        print("Invalid count value. Must be a positive integer.")
+                        return
 
-            try:
-                # Convert hex string to integer
-                dest_ip = int(args[0], 16)
-                # Rapidly send 10 pings
-                for _ in range(10):
-                    time.sleep(0.1)
+                # Send the ping(s)
+                for i in range(count):
+                    if count > 1:
+                        print(f"Sending ping {i+1}/{count}...")
+                        time.sleep(0.1)
                     self.send_echo(dest_ip)
+
             except ValueError:
                 print("Invalid IP address. Please enter a valid hex value (e.g., 2A)")
 

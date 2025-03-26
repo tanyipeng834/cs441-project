@@ -33,7 +33,7 @@ class FirewallNode(Node):
         if ip_packet.source_ip in self.dropped_ips:
             print(f"  Dropped IP packet from IP 0x{ip_packet.source_ip:02X}")
 
-        elif ip_packet.dest_ip == self.ip_address:
+        elif ip_packet.dest_ip == self.ip_address or ip_packet.dest_ip == 0xFF:
             print(
                 f"  Received IP packet from 0x{ip_packet.source_ip:02X} to 0x{ip_packet.dest_ip:02X}"
             )
