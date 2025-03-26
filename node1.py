@@ -7,7 +7,9 @@ if __name__ == "__main__":
     node = SpoofingNode("N1", 0x1A, 50001, ["N1", "N6", "R1"], default_gateway="R1")
 
     # Initialize ARP table - Node1 only knows about itself and R1 in its network
-    node.init_arp_table({0x1A: "N1", 0x1B: "N6", 0x11: "R1"})  # Self  # Router interface R1
+    node.init_arp_table(
+        {0x1A: "N1", 0x1B: "N6", 0x11: "R1"}
+    )  # Self  # Router interface R1
 
     atexit.register(node.shutdown)
 

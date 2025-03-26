@@ -22,7 +22,9 @@ class ARPPacket:
         """Decode string representation back to ARP packet"""
         try:
             if len(packet_data) != 7:  # 'ARP' (3) + opcode (1) + mac (2) + ip (1)
-                raise ValueError("Packet must be exactly 7 bytes long to be an ARP packet")
+                raise ValueError(
+                    "Packet must be exactly 7 bytes long to be an ARP packet"
+                )
             if not packet_data.startswith("ARP"):
                 raise ValueError("Packet must start with 'ARP' to be an ARP packet")
 
