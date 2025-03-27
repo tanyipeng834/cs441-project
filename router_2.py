@@ -1,6 +1,6 @@
 import sys
 import atexit
-from models.router import Router, RouterNode, BGPRouterNode
+from models.router import Router, RouterNode
 from models.ip_packet import IPPacket
 
 if __name__ == "__main__":

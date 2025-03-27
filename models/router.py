@@ -10,6 +10,7 @@ import hmac
 import hashlib
 import traceback
 from .arp_packet import ARPPacket
+import random
 
 
 class Router:
@@ -196,6 +197,7 @@ class RouterNode(Node):
         print(f"  Protocol: {ip_packet.protocol}, Data: {ip_packet.data}")
 
         if ip_packet.dest_ip == self.ip_address:
+            
             print(f"  Packet is for this interface {self.mac_address}")
             if ip_packet.data.startswith("IKE"):
 
@@ -221,6 +223,13 @@ class RouterNode(Node):
 
         else:
             # Otherwise let the router handle it
+            p = 0.5  # Threshold for node sampling (could be set dynamically)
+            x = random.random()  # Random number between 0 and 1
+            
+            # add the ip address for node sampling
+            if x < p:
+                ip_packet.node = self.ip_address 
+                print(ip_packet.node)
             if self.router:
                 # Find outgoing interface from router's routing table
                 outgoing_interface = self.router.get_interface_for_ip(ip_packet.dest_ip)
@@ -322,203 +331,203 @@ class RouterNode(Node):
             )
 
 
-class BGPRouterNode(Node):
-    """
-    A router node extends the Node class to connect a router to a network
-    """
+# class BGPRouterNode(Node):
+#     """
+#     A router node extends the Node class to connect a router to a network
+#     """
 
-    def __init__(self, mac_address, ip_address, port, router=None, network=None):
-        super().__init__(mac_address, ip_address, port, network=None)
-        self.router = router
-        self.network_ips = {}  # Set of IPs in this network
+#     def __init__(self, mac_address, ip_address, port, router=None, network=None):
+#         super().__init__(mac_address, ip_address, port, network=None)
+#         self.router = router
+#         self.network_ips = {}  # Set of IPs in this network
 
-    def start(self, router=None):
-        """Start the interface (called by router)"""
-        # Set the router if provided
-        if router:
-            self.router = router
+#     def start(self, router=None):
+#         """Start the interface (called by router)"""
+#         # Set the router if provided
+#         if router:
+#             self.router = router
 
-    def init_bgp_route(self, network_ips):
-        """Set the IPs that belong to this network interface"""
-        self.network_ips = network_ips
+#     def init_bgp_route(self, network_ips):
+#         """Set the IPs that belong to this network interface"""
+#         self.network_ips = network_ips
 
-    def process_ip_packet(self, ip_packet):
-        """Process an IP packet received on this interface"""
+#     def process_ip_packet(self, ip_packet):
+#         """Process an IP packet received on this interface"""
 
-        if self.router.ipsec:
-            # can only be ipsec packet if it is no ip packet.
+#         if self.router.ipsec:
+#             # can only be ipsec packet if it is no ip packet.
 
-            if not isinstance(ip_packet, IPPacket):
+#             if not isinstance(ip_packet, IPPacket):
 
-                ipSecPacket = IPSecPacket.decode(ip_packet)
+#                 ipSecPacket = IPSecPacket.decode(ip_packet)
 
-                mac = self.router.compute_mac(ipSecPacket.ip_packet)
-                print(ipSecPacket)
-                print(mac)
-                if mac != ipSecPacket.mac:
-                    print("Integrity Check Failed, Discarding IP Packet.")
-                    return
-                print("Integrity Check passed ! Mac matches the one in the ip packet.")
-                if ipSecPacket.mode == 1:
-                    ip_packet = IPPacket.decode(
-                        self.router.decrypt_data(ipSecPacket.ip_packet)
-                    )
-                else:
-                    ip_packet = IPPacket.decode(ipSecPacket.ip_packet)
-                print(ip_packet)
+#                 mac = self.router.compute_mac(ipSecPacket.ip_packet)
+#                 print(ipSecPacket)
+#                 print(mac)
+#                 if mac != ipSecPacket.mac:
+#                     print("Integrity Check Failed, Discarding IP Packet.")
+#                     return
+#                 print("Integrity Check passed ! Mac matches the one in the ip packet.")
+#                 if ipSecPacket.mode == 1:
+#                     ip_packet = IPPacket.decode(
+#                         self.router.decrypt_data(ipSecPacket.ip_packet)
+#                     )
+#                 else:
+#                     ip_packet = IPPacket.decode(ipSecPacket.ip_packet)
+#                 print(ip_packet)
 
-        network_prefix = ip_packet.dest_ip & 0xC0
-        internal_ip = ip_packet.dest_ip & ~0xC0
+#         network_prefix = ip_packet.dest_ip & 0xC0
+#         internal_ip = ip_packet.dest_ip & ~0xC0
 
-        print(
-            f"Interface {self.mac_address} received IP packet from 0x{ip_packet.source_ip:02X} to 0x{ip_packet.dest_ip:02X}"
-        )
-        print(f"  Protocol: {ip_packet.protocol}, Data: {ip_packet.data}")
+#         print(
+#             f"Interface {self.mac_address} received IP packet from 0x{ip_packet.source_ip:02X} to 0x{ip_packet.dest_ip:02X}"
+#         )
+#         print(f"  Protocol: {ip_packet.protocol}, Data: {ip_packet.data}")
 
-        network_prefix = ip_packet.dest_ip & 0xC0
-        internal_ip = ip_packet.dest_ip & ~0xC0
+#         network_prefix = ip_packet.dest_ip & 0xC0
+#         internal_ip = ip_packet.dest_ip & ~0xC0
 
-        if network_prefix == self.ip_address:
-            print(f"  Packet is for this interface {self.mac_address}")
-            if ip_packet.data.startswith("IKE"):
-                if self.router:
-                    self.router.mutual_key_exchange(ip_packet.source_ip)
-                return
+#         if network_prefix == self.ip_address:
+#             print(f"  Packet is for this interface {self.mac_address}")
+#             if ip_packet.data.startswith("IKE"):
+#                 if self.router:
+#                     self.router.mutual_key_exchange(ip_packet.source_ip)
+#                 return
 
-            # Otherwise let the router handle it
-            if self.router:
-                # Find outgoing interface from router's routing table
-                outgoing_interface = self.router.get_interface_for_ip(internal_ip)
+#             # Otherwise let the router handle it
+#             if self.router:
+#                 # Find outgoing interface from router's routing table
+#                 outgoing_interface = self.router.get_interface_for_ip(internal_ip)
 
-                if outgoing_interface:
-                    print(
-                        f"  Route found: forward via interface {outgoing_interface.mac_address}"
-                    )
-                    # Perform NAT from public ip address to private ip address.
+#                 if outgoing_interface:
+#                     print(
+#                         f"  Route found: forward via interface {outgoing_interface.mac_address}"
+#                     )
+#                     # Perform NAT from public ip address to private ip address.
 
-                    ip_packet.dest_ip = internal_ip
+#                     ip_packet.dest_ip = internal_ip
 
-                    # Find destination MAC using ARP table of outgoing interface
-                    if internal_ip in outgoing_interface.arp_table:
-                        dest_mac = outgoing_interface.arp_table[internal_ip]
-                        print(
-                            f"  Forwarding packet to 0x{internal_ip:02X} (MAC: {dest_mac}) via interface {outgoing_interface.mac_address}"
-                        )
-                        outgoing_interface.send_ip_packet(ip_packet, dest_mac)
-                    else:
-                        print(
-                            f"  ERROR: No ARP entry for 0x{internal_ip:02X} on interface {outgoing_interface.mac_address}"
-                        )
-                else:
-                    print(f"  ERROR: No route to 0x{internal_ip:02X}")
-            else:
-                print(f"  ERROR: Router interface not connected to a router")
-        else:
+#                     # Find destination MAC using ARP table of outgoing interface
+#                     if internal_ip in outgoing_interface.arp_table:
+#                         dest_mac = outgoing_interface.arp_table[internal_ip]
+#                         print(
+#                             f"  Forwarding packet to 0x{internal_ip:02X} (MAC: {dest_mac}) via interface {outgoing_interface.mac_address}"
+#                         )
+#                         outgoing_interface.send_ip_packet(ip_packet, dest_mac)
+#                     else:
+#                         print(
+#                             f"  ERROR: No ARP entry for 0x{internal_ip:02X} on interface {outgoing_interface.mac_address}"
+#                         )
+#                 else:
+#                     print(f"  ERROR: No route to 0x{internal_ip:02X}")
+#             else:
+#                 print(f"  ERROR: Router interface not connected to a router")
+#         else:
 
-            port_number, mac_address = self.network_ips[network_prefix]
+#             port_number, mac_address = self.network_ips[network_prefix]
 
-            if port_number:
-                self.send_ip_packet(ip_packet, port_number, mac_address)
-            else:
-                print(
-                    f"There is no BGP Route to the Network prefix 0x{network_prefix:02X}"
-                )
+#             if port_number:
+#                 self.send_ip_packet(ip_packet, port_number, mac_address)
+#             else:
+#                 print(
+#                     f"There is no BGP Route to the Network prefix 0x{network_prefix:02X}"
+#                 )
 
-    def send_ip_packet(self, ip_packet, port, mac_address):
-        """Send an IP packet out this interface"""
-        # Perform NAT from private ip to public ip address.
-        if ip_packet.source_ip != self.ip_address:
-            ip_packet.source_ip = self.ip_address + ip_packet.source_ip
+#     def send_ip_packet(self, ip_packet, port, mac_address):
+#         """Send an IP packet out this interface"""
+#         # Perform NAT from private ip to public ip address.
+#         if ip_packet.source_ip != self.ip_address:
+#             ip_packet.source_ip = self.ip_address + ip_packet.source_ip
 
-        print(
-            f"Interface {self.mac_address} sending IP packet from 0x{ip_packet.source_ip:02X} to 0x{ip_packet.dest_ip:02X}"
-        )
-        packet_data = ip_packet.encode()
-        if self.router.ipsec:
-            if self.router.ipsec_mode == 1:
+#         print(
+#             f"Interface {self.mac_address} sending IP packet from 0x{ip_packet.source_ip:02X} to 0x{ip_packet.dest_ip:02X}"
+#         )
+#         packet_data = ip_packet.encode()
+#         if self.router.ipsec:
+#             if self.router.ipsec_mode == 1:
 
-                encrypted_packet_data = self.router.encrypt_data(packet_data)
-                mac = self.router.compute_mac(encrypted_packet_data)
+#                 encrypted_packet_data = self.router.encrypt_data(packet_data)
+#                 mac = self.router.compute_mac(encrypted_packet_data)
 
-                ipSecPacket = IPSecPacket(
-                    self.ip_address,
-                    self.router.peer,
-                    self.router.ipsec_mode,
-                    encrypted_packet_data,
-                    mac,
-                )
-                packet_data = ipSecPacket.encode()
+#                 ipSecPacket = IPSecPacket(
+#                     self.ip_address,
+#                     self.router.peer,
+#                     self.router.ipsec_mode,
+#                     encrypted_packet_data,
+#                     mac,
+#                 )
+#                 packet_data = ipSecPacket.encode()
 
-        self.send_frame(port, packet_data, mac_address)
+#         self.send_frame(port, packet_data, mac_address)
 
-    def send_frame(self, destination_port, frame_data, mac_address):
-        """
-        Send an Ethernet frame thorough BGP routing policies
-        """
-        try:
-            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-                s.connect((Node.HOST_IP, destination_port))
-                frame = EthernetFrame(self.mac_address, mac_address, frame_data)
-                s.sendall(frame.encode())
-        except Exception as e:
-            print(
-                f"Error sending frame from {self.mac_address} to port {destination_port}: {e}"
-            )
+#     def send_frame(self, destination_port, frame_data, mac_address):
+#         """
+#         Send an Ethernet frame thorough BGP routing policies
+#         """
+#         try:
+#             with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+#                 s.connect((Node.HOST_IP, destination_port))
+#                 frame = EthernetFrame(self.mac_address, mac_address, frame_data)
+#                 s.sendall(frame.encode())
+#         except Exception as e:
+#             print(
+#                 f"Error sending frame from {self.mac_address} to port {destination_port}: {e}"
+#             )
 
-    def process_frame(self, frame):
-        """Process a received Ethernet frame"""
+#     def process_frame(self, frame):
+#         """Process a received Ethernet frame"""
 
-        try:
-            source_mac = frame[0:2].decode("utf-8")
+#         try:
+#             source_mac = frame[0:2].decode("utf-8")
 
-            destination_mac = frame[2:4].decode("utf-8")
+#             destination_mac = frame[2:4].decode("utf-8")
 
-            if self.router.ipsec:
-                data = frame[5:]
-            else:
-                data = frame[5:].decode("utf-8")
+#             if self.router.ipsec:
+#                 data = frame[5:]
+#             else:
+#                 data = frame[5:].decode("utf-8")
 
-            if destination_mac == self.mac_address or destination_mac == "FF":
-                print(
-                    f"Node {self.mac_address} received Ethernet frame from {source_mac}"
-                )
+#             if destination_mac == self.mac_address or destination_mac == "FF":
+#                 print(
+#                     f"Node {self.mac_address} received Ethernet frame from {source_mac}"
+#                 )
 
-                # Check if it's an ARP packet (starts with 'ARP')
+#                 # Check if it's an ARP packet (starts with 'ARP')
 
-                # Try to parse as IP packet
-                try:
-                    data = frame[5:].decode("utf-8")
-                    ip_packet = IPPacket.decode(data)
-                    self.process_ip_packet(ip_packet)
-                except UnicodeDecodeError:
-                    data = frame[5:]
-                    # if ip sec
-                    self.process_ip_packet(data)
+#                 # Try to parse as IP packet
+#                 try:
+#                     data = frame[5:].decode("utf-8")
+#                     ip_packet = IPPacket.decode(data)
+#                     self.process_ip_packet(ip_packet)
+#                 except UnicodeDecodeError:
+#                     data = frame[5:]
+#                     # if ip sec
+#                     self.process_ip_packet(data)
 
-            else:
-                print(
-                    f"Node {self.mac_address} dropped frame from {source_mac} intended for {destination_mac}"
-                )
+#             else:
+#                 print(
+#                     f"Node {self.mac_address} dropped frame from {source_mac} intended for {destination_mac}"
+#                 )
 
-        except Exception as e:
-            print(f"Error processing frame: {frame} - {e}")
+#         except Exception as e:
+#             print(f"Error processing frame: {frame} - {e}")
 
-    def listen_for_frames(self):
-        """Listen for incoming Ethernet frames"""
-        while self.is_running:
-            try:
-                conn, addr = self.sock.accept()
-                with conn:
-                    raw_data = conn.recv(2 + 2 + 1 + Node.MAX_DATA_LENGTH)
-                    if not raw_data:
-                        continue  # Connection closed or no data
-                    self.process_frame(raw_data)
+#     def listen_for_frames(self):
+#         """Listen for incoming Ethernet frames"""
+#         while self.is_running:
+#             try:
+#                 conn, addr = self.sock.accept()
+#                 with conn:
+#                     raw_data = conn.recv(2 + 2 + 1 + Node.MAX_DATA_LENGTH)
+#                     if not raw_data:
+#                         continue  # Connection closed or no data
+#                     self.process_frame(raw_data)
 
-            except OSError:
-                # This can happen if the socket is closed while waiting for accept()
-                if self.is_running:
-                    print(f"Node {self.mac_address} socket accept() error.")
-                break
-            except Exception:
-                print("Error in listen_for_frames:")
-                traceback.print_exc()
+#             except OSError:
+#                 # This can happen if the socket is closed while waiting for accept()
+#                 if self.is_running:
+#                     print(f"Node {self.mac_address} socket accept() error.")
+#                 break
+#             except Exception:
+#                 print("Error in listen_for_frames:")
+#                 traceback.print_exc()
