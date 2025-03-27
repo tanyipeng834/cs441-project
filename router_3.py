@@ -39,18 +39,6 @@ if __name__ == "__main__":
         {
             0x81: "R8",
             0x8A : "N5",
-            0X1A : "R7",
-            0X1B : "R7",
-            0X21 : "R7",
-            0x2A : "R7",
-            0x2B : "R7",
-            0x31 : "R7",
-            0X41: "R7",
-            0x5A : "R7",
-            0x51 : "R7",
-            0X5A : "R7",
-            0x61: "R7",
-            0x71 : "R7",
         }  # Map N1's IP to its MAC  # Self-reference
     )
 

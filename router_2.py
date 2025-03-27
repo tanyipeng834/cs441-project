@@ -61,7 +61,7 @@ if __name__ == "__main__":
             0x2B: r4_node,
             0X71 : r6_node,
             0x81 : r6_node,
-            0x8a :r6_node,
+            0x8A :r6_node,
         }
     )
 
