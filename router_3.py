@@ -9,59 +9,71 @@ if __name__ == "__main__":
     # Node R2: connected to network with N2 and N3
 
     # Create router nodes first
-    r4_node = RouterNode("R4", 0x41, 50007, ["R4", "R3"])
-    r5_node = RouterNode("R5", 0x51, 50008, ["R5", "N4"])
+    r7_node = RouterNode("R7", 0x71, 50013, ["R6", "R7"])
+    r8_node = RouterNode("R8", 0x81, 50014, ["R8", "N5"])
     
-    r6_node = RouterNode("R6", 0x61, 50012, ["R6","R7"])
 
     # Create router with the nodes
-    router = Router([r4_node, r5_node,r6_node])
-    r4_node.init_network_ips([0x31])
-    r4_node.init_arp_table({
-        0x31: "R3",
-        0x41: "R4",
-        0x1A: "R3",
-        0x2A: "R3",
-        0x2B: "R3",
-        0x1B :"R3"})
+    router = Router([r7_node,r8_node])
+    r7_node.init_network_ips([0x61])
+    r7_node.init_arp_table(
+        {
+            0X1A : "R6",
+            0X1B : "R6",
+            0X21 : "R6",
+            0x2A : "R6",
+            0x2B : "R6",
+            0x31 : "R6",
+            0X41: "R6",
+            0x51 : "R6",
+            0X5A : "R6",
+            0x61: "R6",
+            0x71 : "R7",
+            
+            })
 
     # Initialize network IPs for node R1
-    r5_node.init_network_ips([0x5A])  # N1's IP is 0x1A
+    r8_node.init_network_ips([0x8A])  # N1's IP is 0x1A
     # Initialize ARP table for node R1
-    r5_node.init_arp_table(
+    r8_node.init_arp_table(
         {
-            0x5A: "N4",
-            0x51: "R5",
-            
+            0x81: "R8",
+            0x8A : "N5",
+            0X1A : "R7",
+            0X1B : "R7",
+            0X21 : "R7",
+            0x2A : "R7",
+            0x2B : "R7",
+            0x31 : "R7",
+            0X41: "R7",
+            0x5A : "R7",
+            0x51 : "R7",
+            0X5A : "R7",
+            0x61: "R7",
+            0x71 : "R7",
         }  # Map N1's IP to its MAC  # Self-reference
     )
 
-    r6_node.init_network_ips([0x71])  # N1's IP is 0x1A
-    r6_node.init_arp_table(
-    {   
-        0x61: "R6",
-        0x71:"R7",
-        0X81 :"R7",
-        0X8A : "R7"
-        
-
-    }  # Map N1's IP to its MAC  # Self-reference
-)
-
-    # Initialize network IPs for node R2
+   
 
     # Initialize routing table
     router.init_routing_table(
         {
-            0x5A: r5_node,  # Route to N1 via R1 node
-            0x41: r4_node,
-            0x1A: r4_node,
-            0X1B : r4_node,
-            0x2A: r4_node,
-            0x2B: r4_node,
-            0X71 : r6_node,
-            0x81 : r6_node,
-            0x8a :r6_node,
+            0x1A : r7_node,
+            0x1B : r7_node,
+            0X21 : r7_node,
+            0x2A : r7_node,
+            0x2B : r7_node,
+            0x31 : r7_node,
+            0X41: r7_node,
+            0x51 : r7_node,
+            0x5A : r7_node,
+            0x61: r7_node,
+            0x71 : r7_node,
+            0x8A : r8_node,
+            0x81 :r8_node,
+
+
         }
     )
 

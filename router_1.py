@@ -33,7 +33,20 @@ if __name__ == "__main__":
     )
     r3_node.init_network_ips([0x41])
 
-    r3_node.init_arp_table({0x41: "R4", 0x21: "R3", 0x5A: "R4"})  # Self-reference
+    # ROUTE to all other 
+
+    r3_node.init_arp_table(
+        {
+             0x41: "R4",
+             0x5A: "R4",
+             0X51 :"R4",
+             0x61:"R4",
+             0x71:"R4",
+             0x81 :"R4",
+             0x8A :"R4",
+             0x31 :"R3"
+
+        })  # Self-reference
 
     # Initialize routing table
     router.init_routing_table(
@@ -43,6 +56,11 @@ if __name__ == "__main__":
             0x2B: r2_node,  # Route to N3 via R2 node
             0x41: r3_node,
             0x5A: r3_node,
+            0x51 :r3_node,
+            0x61 :r3_node,
+            0x71 : r3_node,
+            0X81 : r3_node,
+            0x8A : r3_node,
         }
     )
 

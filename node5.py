@@ -1,10 +1,10 @@
 import sys
 import atexit
-from models.smurf_node import SmurfNode
+from models.node import Node
 
 if __name__ == "__main__":
     # Create Node 1 with IP address 0x1A
-    node = SmurfNode("N6", 0x1B, 50010, ["N1", "N6", "R1"], default_gateway="R1")
+    node = Node("N5", 0x8A, 50011, ["N5", "R8"], default_gateway="R8")
 
     # Initialize ARP table - Node1 only knows about itself and R1 in its network
     node.init_arp_table(

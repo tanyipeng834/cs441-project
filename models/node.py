@@ -40,6 +40,11 @@ class Node:
             "R4": 50007,
             "R5": 50008,
             "N6": 50010,
+            "N5": 50011,
+            "R6": 50012,
+            "R7": 50013,
+            "R8": 50014,
+
         }
 
         self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
