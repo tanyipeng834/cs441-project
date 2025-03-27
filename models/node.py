@@ -314,7 +314,7 @@ class Node:
             print(f"  Protocol: {ip_packet.protocol}, Data length: {ip_packet.length}")
             if ip_packet.node is not None:
                 ip_packet.node = int(ip_packet.node)
-                print(f" Node Sampled: 0x{ip_packet.node:02X}")
+                print(f"  Node Sampled: 0x{ip_packet.node:02X}")
 
             # Handle different protocols
             if ip_packet.protocol == PingProtocol.PROTOCOL:
@@ -331,7 +331,7 @@ class Node:
         try:
             ping_protocol = PingProtocol.decode(ip_packet.data)
             print(f"  Received Ping Protocol packet: {ping_protocol}")
-
+            
             if ping_protocol.is_echo_request():
                 print(
                     f"  Echo request received from 0x{ip_packet.source_ip:02X}, sending reply"
