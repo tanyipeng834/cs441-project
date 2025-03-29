@@ -47,13 +47,12 @@ class Node:
 
         }
 
-        self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        self.sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         try:
             # Allow reusing the address to avoid
             # "Address already in use" in quick restarts
             self.sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
             self.sock.bind((Node.HOST_IP, self.port))
-            self.sock.listen(10)
         except socket.error as e:
             print(f"Error starting node on port {self.port}: {e}")
             sys.exit(1)
@@ -119,12 +118,11 @@ class Node:
                 if node_mac != self.mac_address:  # Skip sending to itself
                     destination_port = self.process_node_mac(node_mac)
                     try:
-                        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-                            s.connect((Node.HOST_IP, destination_port))
+                        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
                             frame = EthernetFrame(
                                 self.mac_address, destination_mac, frame_data
                             )
-                            s.sendall(frame.encode())
+                            s.sendto(frame.encode(), (Node.HOST_IP, destination_port))
                     except Exception as e:
                         print(
                             f"Error sending frame from {self.mac_address} to port {destination_port}: {e}"
@@ -209,17 +207,15 @@ class Node:
         """Listen for incoming Ethernet frames"""
         while self.is_running:
             try:
-                conn, addr = self.sock.accept()
-                with conn:
-                    raw_data = conn.recv(2 + 2 + 1 + Node.MAX_DATA_LENGTH)
-                    if not raw_data:
-                        continue  # Connection closed or no data
-                    try:
-                        frame = raw_data.decode("utf-8")
-                    except UnicodeDecodeError:
-                        frame = raw_data
+                raw_data, addr = self.sock.recvfrom(2 + 2 + 1 + Node.MAX_DATA_LENGTH)
+                if not raw_data:
+                    continue  # no data received
+                try:
+                    frame = raw_data.decode("utf-8")
+                except UnicodeDecodeError:
+                    frame = raw_data
 
-                    self.process_frame(frame)
+                self.process_frame(frame)
             except OSError:
                 # This can happen if the socket is closed while waiting for accept()
                 if self.is_running:
@@ -294,7 +290,7 @@ class Node:
         """Process IP packets in the queue"""
         while self.is_running:
             # Add delay to simulate processing time
-            self.sleep_event.wait(timeout=2)
+            self.sleep_event.wait(timeout=1)
             try:
                 ip_packet = self.queue.get_nowait()
                 if ip_packet:
