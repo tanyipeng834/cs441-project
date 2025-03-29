@@ -1,17 +1,14 @@
-# You can replace the existing node.py with this content
 import socket
 import threading
 import sys
+import time
 import traceback
-from functools import wraps
-
-# Import all the needed modules - make sure these imports work in your environment
+import queue
 from .arp_packet import ARPPacket
 from .ethernet_frame import EthernetFrame
 from .ip_packet import IPPacket
 from .ping_protocol import PingProtocol
-from .tcp_packet import TCPPacket
-from .tcp_session import TCPSession
+from functools import wraps
 
 
 class Node:
@@ -20,15 +17,15 @@ class Node:
     BASE_PORT = 50000
     VALID_DESTINATION = ["N1", "N2", "N3", "R1", "R2"]
 
-    # Define TCP protocol number explicitly
-    TCP_PROTOCOL = 6
-
     def __init__(self, mac_address, ip_address, port, network, default_gateway=None):
         self.mac_address = mac_address
         self.ip_address = ip_address  # IP address in hex (e.g., 0x1A)
         self.port = port
         self.network = network
         self.default_gateway = default_gateway  # MAC address of default gateway
+        self.queue = queue.Queue(maxsize=3)
+        self.packets_dropped = 0
+        self.sleep_event = threading.Event()
 
         # ARP Table: Maps IP addresses to MAC addresses
         self.arp_table = {}
@@ -38,10 +35,16 @@ class Node:
             "N3": 50003,
             "R1": 50004,
             "R2": 50005,
-            "N4": 50009,
             "R3": 50006,
             "R4": 50007,
             "R5": 50008,
+            "N4": 50009,
+            "N6": 50010,
+            "N5": 50011,
+            "R6": 50012,
+            "R7": 50013,
+            "R8": 50014,
+
         }
 
         self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -50,7 +53,7 @@ class Node:
             # "Address already in use" in quick restarts
             self.sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
             self.sock.bind((Node.HOST_IP, self.port))
-            self.sock.listen(1)
+            self.sock.listen(10)
         except socket.error as e:
             print(f"Error starting node on port {self.port}: {e}")
             sys.exit(1)
@@ -66,21 +69,15 @@ class Node:
         self.listen_thread = threading.Thread(target=self.listen_for_frames)
         self.listen_thread.start()
 
+        # Start thread to process IP packets from the queue
+        self.process_thread = threading.Thread(target=self.process_queue)
+        self.process_thread.start()
+
         # Add a sequence counter for Ping Protocol messages
         self.ping_sequence = 0
 
         # Track ping requests for matching responses
         self.ping_requests = {}
-
-        # TCP-specific attributes
-        # TCP sessions storage
-        # Key: (local_port, remote_ip, remote_port) - Identifies a unique connection
-        # Value: TCPSession object
-        self.tcp_sessions = {}
-
-        # Listening ports
-        # Key: local_port, Value: TCPSession in LISTEN state
-        self.listening_ports = {}
 
         # Command registry: Maps command names to handler functions and help text
         self.commands = {}
@@ -88,14 +85,14 @@ class Node:
         # Register built-in commands
         self.register_default_commands()
 
-        # Register TCP commands
-        self.register_tcp_commands()
-
     def init_arp_table(self, arp_entries):
         """Initialize the ARP table with known IP-to-MAC mappings"""
         self.arp_table = arp_entries
 
     def get_mac_for_ip(self, ip_address):
+        if ip_address == 0xFF:
+            return "FF"
+
         """Look up MAC address for a given IP"""
         if ip_address in self.arp_table:
             return self.arp_table[ip_address]
@@ -205,6 +202,7 @@ class Node:
 
     def process_node_mac(self, mac_address):
         """Convert MAC address to port number"""
+
         return self.port_mapping[mac_address]
 
     def listen_for_frames(self):
@@ -251,7 +249,7 @@ class Node:
         try:
             source_mac, destination_mac, _, data = self.decode_frame(frame)
 
-            if destination_mac == self.mac_address:
+            if destination_mac == self.mac_address or destination_mac == "FF":
                 print(
                     f"Node {self.mac_address} received Ethernet frame from {source_mac}"
                 )
@@ -268,10 +266,11 @@ class Node:
                     # Try to parse as IP packet
                     try:
                         ip_packet = IPPacket.decode(data)
-                        self.process_ip_packet(ip_packet)
-                    except Exception as e:
-                        print(f"  Failed to decode as IP packet: {e}")
-                        print(f"  Raw data: {data}")
+                        # Add IP packet to processing queue
+                        self.add_ip_packet_to_queue(ip_packet)
+
+                    except Exception:
+                        print(f"  Data: {data}")
 
             else:
                 print(
@@ -281,51 +280,58 @@ class Node:
         except Exception as e:
             print(f"Error processing frame: {frame} - {e}")
 
-    def process_ip_packet(self, ip_packet):
+    def add_ip_packet_to_queue(self, ip_packet: IPPacket):
+        """Add an IP packet to the processing queue"""
+        try:
+            self.queue.put_nowait(ip_packet)
+            current_size = self.queue.qsize()
+            print(f"  Queue size: {current_size}/{self.queue.maxsize}")
+        except queue.Full:
+            print(f"  Queue full, dropping IP packet from 0x{ip_packet.source_ip:02X}")
+            self.packets_dropped += 1
+
+    def process_queue(self):
+        """Process IP packets in the queue"""
+        while self.is_running:
+            # Add delay to simulate processing time
+            self.sleep_event.wait(timeout=2)
+            try:
+                ip_packet = self.queue.get_nowait()
+                if ip_packet:
+                    self.process_ip_packet(ip_packet)
+            except queue.Empty:
+                pass
+            except Exception:
+                pass
+
+    def process_ip_packet(self, ip_packet: IPPacket):
         """Process a received IP packet"""
-        if ip_packet.dest_ip == self.ip_address:
+        if ip_packet.dest_ip == self.ip_address or ip_packet.dest_ip == 0xFF:
             print(
                 f"  Received IP packet from 0x{ip_packet.source_ip:02X} to 0x{ip_packet.dest_ip:02X}"
             )
+            
             print(f"  Protocol: {ip_packet.protocol}, Data length: {ip_packet.length}")
-
-            # Get protocol number as integer
-            protocol = ip_packet.protocol
-
-            # Debug print to help diagnose
-            print(f"  DEBUG: Protocol={protocol}, Type={type(protocol)}")
+            if ip_packet.node is not None:
+                ip_packet.node = int(ip_packet.node)
+                print(f"  Node Sampled: 0x{ip_packet.node:02X}")
 
             # Handle different protocols
-            if protocol == 0:  # PingProtocol.PROTOCOL is 0
+            if ip_packet.protocol == PingProtocol.PROTOCOL:
                 self.handle_ping_protocol(ip_packet)
-            elif protocol == 6:  # Hardcoded TCP protocol number
-                print(f"  Processing TCP packet...")
-                try:
-                    tcp_packet = TCPPacket.decode(ip_packet.data)
-                    print(f"  Received TCP packet: {tcp_packet}")
-                    self.process_tcp_packet(tcp_packet, ip_packet.source_ip)
-                except ValueError as e:
-                    print(f"  Error decoding TCP packet: {e}")
-                except Exception as e:
-                    print(
-                        f"  Unexpected error processing TCP packet: {type(e).__name__}: {e}"
-                    )
-                    # Print the first few bytes to help diagnose
-                    if isinstance(ip_packet.data, str):
-                        print(f"  TCP data: {repr(ip_packet.data[:20])}")
-                    else:
-                        print(f"  TCP data (bytes): {ip_packet.data[:20]}")
             else:
-                print(f"  Unknown protocol: {protocol}, Data: {ip_packet.data}")
+                print(
+                    f"  Unknown protocol: {ip_packet.protocol}, Data: {ip_packet.data}"
+                )
         else:
             print(f"  Dropped IP packet intended for 0x{ip_packet.dest_ip:02X}")
 
-    def handle_ping_protocol(self, ip_packet):
+    def handle_ping_protocol(self, ip_packet: IPPacket):
         """Handle Ping Protocol packets"""
         try:
             ping_protocol = PingProtocol.decode(ip_packet.data)
             print(f"  Received Ping Protocol packet: {ping_protocol}")
-
+            
             if ping_protocol.is_echo_request():
                 print(
                     f"  Echo request received from 0x{ip_packet.source_ip:02X}, sending reply"
@@ -381,8 +387,9 @@ class Node:
             print(f"  Error processing Ping Protocol packet: {e}")
             traceback.print_exc()
 
-    def process_arp_packet(self, arp_packet):
+    def process_arp_packet(self, arp_packet: ARPPacket):
         """Process an ARP Packet received in an Ethernet frame"""
+
         # Update our ARP table with the received mapping
         old_mac = self.arp_table.get(arp_packet.source_ip)
         self.arp_table[arp_packet.source_ip] = arp_packet.source_mac
@@ -425,260 +432,6 @@ class Node:
         except Exception as e:
             print(f"Error processing ARP message: {e}")
 
-    # TCP-specific methods
-    def send_tcp_packet(self, dest_ip, tcp_packet):
-        """Send a TCP packet encapsulated in an IP packet"""
-        # Encode the TCP packet
-        tcp_data = tcp_packet.encode()
-
-        # Send it in an IP packet
-        self.send_ip_packet(dest_ip, 6, tcp_data)  # Use hardcoded 6 for TCP
-
-    def process_tcp_packet(self, tcp_packet, source_ip):
-        """Process a TCP packet and update the appropriate session"""
-        # Check if this matches an existing session
-        session_key = (tcp_packet.dest_port, source_ip, tcp_packet.src_port)
-
-        if session_key in self.tcp_sessions:
-            # Existing session
-            session = self.tcp_sessions[session_key]
-
-            # Process the packet
-            response = session.handle_packet(tcp_packet, source_ip)
-
-            # Check if session should be removed (closed)
-            if session.state == TCPSession.CLOSED:
-                del self.tcp_sessions[session_key]
-                print(f"TCP connection closed and removed")
-
-            # Send response if needed
-            if response:
-                self.send_tcp_packet(source_ip, response)
-
-            # Process any received data
-            if session.received_data:
-                for data in session.received_data:
-                    print(f"TCP data received on port {tcp_packet.dest_port}: {data}")
-                session.received_data = []  # Clear after processing
-
-        # Check if this is for a listening port (new connection)
-        elif tcp_packet.dest_port in self.listening_ports and tcp_packet.is_syn():
-            # Get the listening session
-            listen_session = self.listening_ports[tcp_packet.dest_port]
-
-            # Handle the SYN packet
-            response = listen_session.handle_packet(tcp_packet, source_ip)
-
-            # If state changed to SYN_RECEIVED, create a new session
-            if listen_session.state == TCPSession.SYN_RECEIVED:
-                # Create new session based on the listening session
-                new_session = TCPSession(
-                    self.ip_address,
-                    tcp_packet.dest_port,
-                    source_ip,
-                    tcp_packet.src_port,
-                )
-                new_session.state = TCPSession.SYN_RECEIVED
-                new_session.seq_num = listen_session.seq_num
-                new_session.next_seq = listen_session.next_seq
-
-                # Store the new session
-                self.tcp_sessions[session_key] = new_session
-
-                # Reset listen session back to LISTEN state
-                listen_session.state = TCPSession.LISTEN
-                listen_session.remote_ip = None
-                listen_session.remote_port = None
-
-            # Send response if needed
-            if response:
-                self.send_tcp_packet(source_ip, response)
-
-        else:
-            # No matching session or listening port
-            print(
-                f"Received TCP packet for unknown session or closed port: {tcp_packet.dest_port}"
-            )
-
-            # Send RST packet if not a RST packet itself
-            if not tcp_packet.is_rst():
-                rst_packet = TCPPacket(
-                    src_port=tcp_packet.dest_port,
-                    dest_port=tcp_packet.src_port,
-                    seq_num=0,
-                    ack_num=(
-                        tcp_packet.seq_num + 1
-                        if tcp_packet.is_syn()
-                        else tcp_packet.seq_num
-                    ),
-                    flags=TCPPacket.RST,
-                    data="",
-                )
-                self.send_tcp_packet(source_ip, rst_packet)
-
-    def register_tcp_commands(self):
-        """Register TCP-specific commands"""
-
-        @self.command("tcp_listen", "<port> - Start listening on specified TCP port")
-        def cmd_tcp_listen(self, args):
-            if not args:
-                print("Invalid input. Usage: tcp_listen <port>")
-                return
-
-            try:
-                local_port = int(args[0])
-                if local_port < 1 or local_port > 255:
-                    print("Port must be between 1 and 255")
-                    return
-
-                # Create a new session in LISTEN state
-                session = TCPSession(self.ip_address, local_port)
-                session.start_passive_open()
-
-                # Store in listening ports
-                self.listening_ports[local_port] = session
-
-                print(f"TCP listening on port {local_port}")
-            except ValueError:
-                print("Invalid port number")
-
-        @self.command(
-            "tcp_connect",
-            "<dest_ip> <dest_port> <local_port> - Initiate TCP connection",
-        )
-        def cmd_tcp_connect(self, args):
-            if len(args) != 3:
-                print(
-                    "Invalid input. Usage: tcp_connect <dest_ip> <dest_port> <local_port>"
-                )
-                return
-
-            try:
-                dest_ip = int(args[0], 16)
-                dest_port = int(args[1])
-                local_port = int(args[2])
-
-                if (
-                    dest_port < 1
-                    or dest_port > 255
-                    or local_port < 1
-                    or local_port > 255
-                ):
-                    print("Ports must be between 1 and 255")
-                    return
-
-                # Print connection message first for consistent output
-                print(
-                    f"Initiating TCP connection to 0x{dest_ip:02X}:{dest_port} from local port {local_port}"
-                )
-
-                # Create new TCP session
-                session = TCPSession(self.ip_address, local_port, dest_ip, dest_port)
-
-                # Initiate connection
-                syn_packet = session.start_active_open()
-
-                # Store session
-                session_key = (local_port, dest_ip, dest_port)
-                self.tcp_sessions[session_key] = session
-
-                # Send SYN packet
-                self.send_tcp_packet(dest_ip, syn_packet)
-            except ValueError as e:
-                print(f"Error: {e}")
-
-        @self.command(
-            "tcp_send",
-            "<local_port> <message> - Send data over established TCP connection",
-        )
-        def cmd_tcp_send(self, args):
-            if len(args) < 2:
-                print("Invalid input. Usage: tcp_send <local_port> <message>")
-                return
-
-            try:
-                local_port = int(args[0])
-                message = " ".join(args[1:])
-
-                # Find the session for this local port
-                session = None
-                for key, s in self.tcp_sessions.items():
-                    if key[0] == local_port and s.state == TCPSession.ESTABLISHED:
-                        session = s
-                        break
-
-                if not session:
-                    print(f"No established TCP connection on port {local_port}")
-                    return
-
-                # Create and send data packet
-                data_packet = session.send_data(message)
-                self.send_tcp_packet(session.remote_ip, data_packet)
-
-                print(
-                    f"Sent {len(message)} bytes to 0x{session.remote_ip:02X}:{session.remote_port}"
-                )
-            except ValueError as e:
-                print(f"Error: {e}")
-
-        @self.command("tcp_close", "<local_port> - Close TCP connection")
-        def cmd_tcp_close(self, args):
-            if not args:
-                print("Invalid input. Usage: tcp_close <local_port>")
-                return
-
-            try:
-                local_port = int(args[0])
-
-                # Find the session for this local port
-                session = None
-                session_key = None
-                for key, s in self.tcp_sessions.items():
-                    if key[0] == local_port:
-                        session = s
-                        session_key = key
-                        break
-
-                if not session:
-                    print(f"No TCP connection on port {local_port}")
-                    return
-
-                # Initiate connection close
-                fin_packet = session.close()
-                if fin_packet:
-                    self.send_tcp_packet(session.remote_ip, fin_packet)
-                    print(
-                        f"Closing TCP connection to 0x{session.remote_ip:02X}:{session.remote_port}"
-                    )
-
-                # If connection is fully closed, remove it
-                if session.state == TCPSession.CLOSED:
-                    del self.tcp_sessions[session_key]
-            except ValueError as e:
-                print(f"Error: {e}")
-
-        @self.command("tcp_status", "- Show all TCP connections")
-        def cmd_tcp_status(self, args):
-            if not self.tcp_sessions and not self.listening_ports:
-                print("No TCP connections")
-                return
-
-            print("TCP Connections:")
-
-            # Show listening ports
-            for port, session in self.listening_ports.items():
-                print(f"  Port {port}: LISTENING")
-
-            # Show established and other connections
-            for key, session in self.tcp_sessions.items():
-                local_port, remote_ip, remote_port = key
-                print(
-                    f"  Local port {local_port} <-> 0x{remote_ip:02X}:{remote_port} - {session.get_state_name()}"
-                )
-                print(f"    SEQ: {session.seq_num}, NEXT: {session.next_seq}")
-                if session.received_data:
-                    print(f"    Received: {len(session.received_data)} messages")
-
     # Command registration decorator
     def command(self, name, help_text, default=False):
         def decorator(func):
@@ -700,7 +453,7 @@ class Node:
         """Register the default commands"""
 
         @self.command("ef", " <destination> <message> - Send raw Ethernet frame", True)
-        def cmd_send_frame(self, args):
+        def cmd_send_frame(self: Node, args):
             if len(args) < 2:
                 print("Invalid input. Usage: <destination> <message>")
                 return
@@ -716,7 +469,7 @@ class Node:
             print(f"Ethernet frame sent to {destination} with data: {data}")
 
         @self.command("ip", "<destination> <protocol> <message> - Send IP packet", True)
-        def cmd_send_ip_packet(self, args):
+        def cmd_send_ip_packet(self: Node, args):
             if len(args) < 2:
                 print("Invalid input. Usage: <destination> <protocol> <message>")
                 return
@@ -726,28 +479,53 @@ class Node:
             data = " ".join(args[2:])
             self.send_ip_packet(destination, protocol, data)
 
-        @self.command("ping", "<ip_hex> - Send a ping to the specified IP", True)
-        def cmd_ping(self, args):
+        @self.command(
+            "ping", "<ip_hex> [-c count] - Send ping(s) to the specified IP", True
+        )
+        def cmd_ping(self: Node, args):
             if not args:
-                print("Invalid input. Usage: ping <ip_hex>")
+                print("Invalid input. Usage: ping <ip_hex> [-c count]")
                 return
 
             try:
-                # Convert hex string to integer
+                # Parse arguments
                 dest_ip = int(args[0], 16)
-                # Send Ping
-                self.send_echo(dest_ip)
+                count = 1  # Default to one ping
+
+                # Check if -c flag is present
+                if len(args) >= 3 and args[1] == "-c":
+                    try:
+                        count = int(args[2])
+                        if count < 1:
+                            print("Count must be a positive number")
+                            return
+                    except ValueError:
+                        print("Invalid count value. Must be a positive integer.")
+                        return
+
+                # Send the ping(s)
+                for i in range(count):
+                    if count > 1:
+                        print(f"Sending ping {i+1}/{count}...")
+                        time.sleep(0.1)
+                    self.send_echo(dest_ip)
+
             except ValueError:
                 print("Invalid IP address. Please enter a valid hex value (e.g., 2A)")
 
         @self.command("arp", "- Display the ARP table", True)
-        def cmd_arp(self, args):
+        def cmd_arp(self: Node, args):
             print("ARP Table:")
             for ip, mac in self.arp_table.items():
                 print(f"  0x{ip:02X} -> {mac}")
 
+        @self.command("stats", "- Display node statistics", True)
+        def cmd_stats(self: Node, args):
+            print(f"Node {self.mac_address} statistics:")
+            print(f"  Packets dropped: {self.packets_dropped}")
+
         @self.command("help", "- Show this help message", True)
-        def cmd_help(self, args):
+        def cmd_help(self: Node, args):
             self.display_help()
 
         @self.command("q", "- Exit", True)
@@ -806,6 +584,10 @@ class Node:
     def shutdown(self):
         """Shutdown the node and close connections"""
         self.is_running = False
+
+        # Stop sleep event
+        self.sleep_event.set()
+
         try:
             self.sock.close()
         except Exception as e:
@@ -814,3 +596,7 @@ class Node:
         # Join the listening thread to ensure it finishes
         if self.listen_thread.is_alive():
             self.listen_thread.join()
+
+        if self.process_thread.is_alive():
+
+            self.process_thread.join()
