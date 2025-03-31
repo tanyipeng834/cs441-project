@@ -2,6 +2,7 @@ import sys
 import atexit
 from models.router import Router, RouterNode
 from models.ip_packet import IPPacket
+from utils.routing import R4_ARP_TABLE, R4_NETWORK,R5_ARP_TABLE,R5_NETWORK,R6_NETWORK,R6_ARP_TABLE
 
 if __name__ == "__main__":
     # Create router with two nodes: R1 and R2
@@ -9,59 +10,43 @@ if __name__ == "__main__":
     # Node R2: connected to network with N2 and N3
 
     # Create router nodes first
-    r4_node = RouterNode("R4", 0x41, 50007, ["R4", "R3"])
-    r5_node = RouterNode("R5", 0x51, 50008, ["R5", "N4"])
+    r4_node = RouterNode("R4", 0x41, 50015, R4_NETWORK)
+    r5_node = RouterNode("R5", 0x51, 50016, R5_NETWORK)
     
-    r6_node = RouterNode("R6", 0x61, 50012, ["R6","R7"])
+    r6_node = RouterNode("R6", 0x61, 50017, R6_NETWORK)
 
     # Create router with the nodes
     router = Router([r4_node, r5_node,r6_node])
     r4_node.init_network_ips([0x31])
-    r4_node.init_arp_table({
-        0x31: "R3",
-        0x41: "R4",
-        0x1A: "R3",
-        0x2A: "R3",
-        0x2B: "R3",
-        0x1B :"R3"})
+    r4_node.init_arp_table(R4_ARP_TABLE)
 
     # Initialize network IPs for node R1
     r5_node.init_network_ips([0x5A])  # N1's IP is 0x1A
     # Initialize ARP table for node R1
-    r5_node.init_arp_table(
-        {
-            0x5A: "N4",
-            0x51: "R5",
-            
-        }  # Map N1's IP to its MAC  # Self-reference
-    )
+    r5_node.init_arp_table(R5_ARP_TABLE)
 
     r6_node.init_network_ips([0x71])  # N1's IP is 0x1A
-    r6_node.init_arp_table(
-    {   
-        0x61: "R6",
-        0x71:"R7",
-        0X81 :"R7",
-        0X8A : "R7"
-        
-
-    }  # Map N1's IP to its MAC  # Self-reference
-)
+    r6_node.init_arp_table(R6_ARP_TABLE)
 
     # Initialize network IPs for node R2
 
     # Initialize routing table
     router.init_routing_table(
-        {
-            0x5A: r5_node,  # Route to N1 via R1 node
-            0x41: r4_node,
-            0x1A: r4_node,
-            0X1B : r4_node,
-            0x2A: r4_node,
-            0x2B: r4_node,
-            0X71 : r6_node,
-            0x81 : r6_node,
-            0x8A :r6_node,
+        {   0x11 : r4_node,
+            0x1A:  r4_node,
+            0x1B : r4_node,
+            0x1C : r4_node,
+            0x1D : r4_node,
+            0x1E : r4_node,
+            0x1F : r4_node,
+            0x21 : r4_node,
+            0x2A:  r4_node,  
+            0x2B:  r4_node,
+            0x2C : r4_node,
+            0x5A:  r5_node,
+            0x71 : r6_node,
+            0X81 : r6_node,
+            0x8A : r6_node,
         }
     )
 

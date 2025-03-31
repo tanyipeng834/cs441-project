@@ -1,15 +1,14 @@
 import sys
 import atexit
-from models.node import Node
+from models.spoofing_node import SpoofingNode
+from utils.routing import R1_ARP_TABLE, R1_NETWORK
 
 if __name__ == "__main__":
-    # Create Node 1 with IP address 0x1A
-    node = Node("N5", 0x8A, 50011, ["N5", "R8"], default_gateway="R8")
+    # Create Node 8 with IP address 0x1D
+    node = SpoofingNode("N5", 0x1C, 50005, R1_NETWORK, default_gateway="R1")
 
-    # Initialize ARP table - Node1 only knows about itself and R1 in its network
-    node.init_arp_table(
-        {0x8A: "N5", 0x81: "R8"}
-    )  # Self  # Router interface R1
+    # Initialize ARP table - Node only knows about itself and R1 in its network
+    node.init_arp_table(R1_ARP_TABLE)
 
     atexit.register(node.shutdown)
 

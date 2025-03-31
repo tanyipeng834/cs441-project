@@ -229,7 +229,7 @@ class RouterNode(Node):
             # add the ip address for node sampling
             if x < p:
                 ip_packet.node = self.ip_address 
-                print(ip_packet.node)
+                
             if self.router:
                 # Find outgoing interface from router's routing table
                 outgoing_interface = self.router.get_interface_for_ip(ip_packet.dest_ip)

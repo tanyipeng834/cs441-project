@@ -2,6 +2,8 @@ import sys
 import atexit
 from models.router import Router, RouterNode
 from models.ip_packet import IPPacket
+from utils.routing import R1_ARP_TABLE, R1_NETWORK,R2_ARP_TABLE,R2_NETWORK,R3_NETWORK,R3_ARP_TABLE
+
 
 if __name__ == "__main__":
     # Create router with two nodes: R1 and R2
@@ -9,51 +11,44 @@ if __name__ == "__main__":
     # Node R2: connected to network with N2 and N3
 
     # Create router nodes first
-    r1_node = RouterNode("R1", 0x11, 50004, ["N1", "N6", "R1"])
-    r2_node = RouterNode("R2", 0x21, 50005, ["N2", "N3", "R2"])
-    r3_node = RouterNode("R3", 0x31, 50006, ["R3", "R4"])
+    r1_node = RouterNode("R1", 0x11, 50012, R1_NETWORK)
+    r2_node = RouterNode("R2", 0x21, 50013, R2_NETWORK)
+    r3_node = RouterNode("R3", 0x31, 50014, R3_NETWORK)
 
     # Create router with the nodes
     router = Router([r1_node, r2_node, r3_node])
 
     # Initialize network IPs for node R1
-    r1_node.init_network_ips([0x1A])  # N1's IP is 0x1A
+    r1_node.init_network_ips([0x1A,0x1B,0x1C,0x1D,0x1E,0x1F])  # N1's IP is 0x1A
     # Initialize ARP table for node R1
-    r1_node.init_arp_table({0x1A: "N1", 0x1B: "N6", 0x11: "R1"})
+    r1_node.init_arp_table(R1_ARP_TABLE)
 
     # Initialize network IPs for node R2
-    r2_node.init_network_ips([0x2A, 0x2B])  # N2 and N3's IPs
+    r2_node.init_network_ips([0x2A, 0x2B,0x2C])  # N2 and N3's IPs
     # Initialize ARP table for node R2
     r2_node.init_arp_table(
-        {
-            0x2A: "N2",  # Map N2's IP to its MAC
-            0x2B: "N3",  # Map N3's IP to its MAC
-            0x21: "R2",  # Self-reference
-        }
+       R2_ARP_TABLE
     )
     r3_node.init_network_ips([0x41])
 
     # ROUTE to all other 
 
     r3_node.init_arp_table(
-        {
-             0x41: "R4",
-             0x5A: "R4",
-             0X51 :"R4",
-             0x61: "R4",
-             0x71:"R4",
-             0x81 :"R4",
-             0x8A :"R4",
-             0x31 :"R3"
-
-        })  # Self-reference
+        R3_ARP_TABLE
+        )  # Self-reference
 
     # Initialize routing table
     router.init_routing_table(
         {
-            0x1A: r1_node,  # Route to N1 via R1 node
-            0x2A: r2_node,  # Route to N2 via R2 node
-            0x2B: r2_node,  # Route to N3 via R2 node
+            0x1A: r1_node,
+            0x1B : r1_node,
+            0x1C : r1_node,
+            0x1D : r1_node,
+            0x1E : r1_node,
+            0x1F : r1_node,
+            0x2A: r2_node,  
+            0x2B: r2_node,
+            0x2C : r2_node,
             0x41: r3_node,
             0x5A: r3_node,
             0x51 :r3_node,
