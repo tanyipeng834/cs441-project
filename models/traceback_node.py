@@ -9,9 +9,10 @@ class TracebackNode(Node):
     def __init__(self, mac_address, ip_address, port, network, default_gateway=None):
         super().__init__(mac_address, ip_address, port, network, default_gateway)
         # Log to store captured packets
-        self.queue = queue.Queue(maxsize=0) 
-        self.process_thread = None 
+        self.queue = queue.Queue(maxsize=100) 
+        self.nodes ={}
         self.register_traceback_commands()
+        
 
     def process_ip_packet(self, ip_packet: IPPacket):
         """Process a received IP packet"""
@@ -21,10 +22,14 @@ class TracebackNode(Node):
             )
             
             print(f"  Protocol: {ip_packet.protocol}, Data length: {ip_packet.length}")
-            # Add logic for RFC and add to queue if there is no reverse path as the ip address is spoofed.
+            
             if ip_packet.node is not None:
                 ip_packet.node = int(ip_packet.node)
-                print(f"  Node Sampled: 0x{ip_packet.node:02X}")
+                if ip_packet.node not in self.nodes:
+                    self.nodes[ip_packet.node] =0
+                else:
+                    self.node[ip_packet.node]+=1
+                
 
             # Handle different protocols
             if ip_packet.protocol == PingProtocol.PROTOCOL:
@@ -35,6 +40,61 @@ class TracebackNode(Node):
                 )
         else:
             print(f"  Dropped IP packet intended for 0x{ip_packet.dest_ip:02X}")
+    def add_ip_packet_to_queue(self, ip_packet: IPPacket):
+        """Add an IP packet to the processing queue"""
+        try:
+            self.queue.put_nowait(ip_packet)
+            current_size = self.queue.qsize()
+            print(f"  Queue size: {current_size}/{self.queue.maxsize}")
+        except queue.Full:
+            print(f"  Queue full, dropping IP packet from 0x{ip_packet.source_ip:02X}")
+            self.packets_dropped += 1
+            
+
+    def process_queue(self):
+        """Process IP packets in the queue"""
+        while self.is_running:
+            # Add delay to simulate processing time
+            self.sleep_event.wait(timeout=0.1)
+            try:
+                ip_packet = self.queue.get_nowait()
+                if ip_packet:
+                    self.process_ip_packet(ip_packet)
+            except queue.Empty:
+                pass
+            except Exception:
+                pass
+    def ip_traceback(self):
+        """Perform IP traceback to identify attack sources in DDoS attacks."""
+        # Sort nodes by their counts (least encountered first)
+        if len(self.nodes)==0:
+            return "No nodes to traceback."
+        sorted_nodes = sorted(self.nodes.items(), key=lambda x: x[1])
+    
+
+        # Initialize a list to store the path
+        traceback_path = []
+
+        print("Performing IP Traceback...")
+
+        # Build the path from the sorted nodes
+        for node, count in sorted_nodes:
+            print(f"Node {node} encountered {count} times.")
+            traceback_path.append(str(node))
+
+        # Create a string representation of the path with "->" arrows
+        traceback_string = " -> ".join(traceback_path)
+
+        # Print the traceback path
+        print(f"Traceback Path: {traceback_string}")
+
+        return traceback_string
+    def reset_nodes(self):
+        """Reset the node count periodically."""
+        self.nodes = {}
+        print("Node counts reset.")
+
+
     def process_frame(self, frame):
         """Process a received Ethernet frame"""
         try:
@@ -59,7 +119,7 @@ class TracebackNode(Node):
                         ip_packet = IPPacket.decode(data)
                         # Add IP packet to processing queue
                         # Do not add the queue and just process it straight away.
-                        self.process_ip_packet(ip_packet)
+                        self.add_ip_packet_to_queue(ip_packet)
 
                     except Exception:
                         print(f"  Data: {data}")
@@ -71,6 +131,7 @@ class TracebackNode(Node):
 
         except Exception as e:
             print(f"Error processing frame: {frame} - {e}")
+    
     def register_traceback_commands(self):
         @self.command(
             "traceback", "- Use IP traceback to identify attack sources in DDoS attacks."
