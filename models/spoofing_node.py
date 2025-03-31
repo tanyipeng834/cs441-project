@@ -1,3 +1,4 @@
+import random
 from models.node import Node
 from models.ip_packet import IPPacket
 
@@ -8,6 +9,7 @@ class SpoofingNode(Node):
         super().__init__(mac_address, ip_address, port, network, default_gateway)
         self.register_spoofing_commands()
         self.spoof = False
+        self.spoofed_ip = 0x2B
 
     def send_ip_packet(self, destination_ip, protocol, data):
         """
@@ -32,7 +34,7 @@ class SpoofingNode(Node):
 
             if self.spoof:
                 # Spoof the source IP address to impersonate Node 3
-                source_ip = 0x2B
+                source_ip = self.spoofed_ip
 
             ip_packet = IPPacket(source_ip, destination_ip, protocol, chunk)
             packet_data = ip_packet.encode()
@@ -56,21 +58,51 @@ class SpoofingNode(Node):
                 print(f"No route to host 0x{destination_ip:02X}")
 
     def register_spoofing_commands(self):
-        @self.command("spoof", "<on/off> - Impersonate Node 3 to Ping Node 1 ")
+        @self.command(
+            "spoof", "<ip_hex/random/off> - Impersonate Node 3 to Ping Node 1 "
+        )
         def spoof_command(self: SpoofingNode, args):
             if not args:
-                print("Invalid input. Usage: spoof <on/off>")
+                print("Invalid input. Usage: spoof <ip_hex/random/off>")
                 return
 
-            if args[0].lower() == "on":
-                if self.spoof:
-                    print("Spoofing mode already enabled.")
-                else:
-                    self.spoof = True
-                    print(f"Spoofing Mode enabled")
-            elif args[0].lower() == "off":
+            cmd = args[0].lower()
+
+            if cmd == "off":
                 if not self.spoof:
                     print("Spoofing Mode already disabled")
                 else:
                     self.spoof = False
                     print(f"Spoofing Mode disabled")
+            elif cmd == "random":
+                # Generate a random IP that's not our own
+                while True:
+                    random_ip = random.randint(1, 255)
+                    if random_ip != self.ip_address:
+                        break
+
+                self.spoofed_ip = random_ip
+                self.spoof = True
+                print(f"Spoofing Mode enabled with random IP 0x{self.spoofed_ip:02X}")
+
+            else:
+                # Try to parse the IP address as hex
+                try:
+                    spoof_ip = int(cmd, 16)  # This parses the hex string to an integer
+
+                    if spoof_ip < 0 or spoof_ip > 255:
+                        print("Invalid IP address. Must be between 0x00 and 0xFF.")
+                        return
+
+                    if spoof_ip == self.ip_address:
+                        print("Cannot spoof your own IP address.")
+                        return
+
+                    self.spoofed_ip = spoof_ip
+                    self.spoof = True
+                    print(f"Spoofing Mode enabled with IP 0x{self.spoofed_ip:02X}")
+
+                except ValueError:
+                    print(
+                        "Invalid IP address. Please enter a valid hex value (e.g., 2B)"
+                    )
