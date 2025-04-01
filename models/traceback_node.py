@@ -25,17 +25,20 @@ class TracebackNode(Node):
             print(f"  Protocol: {ip_packet.protocol}, Data length: {ip_packet.length}")
             
             if ip_packet.node is not None:
+              
                 ip_packet.node = int(ip_packet.node)
+                
                 if ip_packet.node not in self.nodes:
-                    self.nodes[ip_packet.node] =0
+                    self.nodes[ip_packet.node] =1
                 else:
-                    self.node[ip_packet.node]+=1
+                    self.nodes[ip_packet.node]+=1
+            
+            
                 
 
             # Handle different protocols
             
             if ip_packet.protocol == PingProtocol.PROTOCOL:
-                print("hello")
                 self.handle_ping_protocol(ip_packet)
             else:
                 print(
@@ -50,16 +53,16 @@ class TracebackNode(Node):
             current_size = self.queue.qsize()
             print(f"  Queue size: {current_size}/{self.queue.maxsize}")
         except queue.Full:
+
             print(f"  Queue full, dropping IP packet from 0x{ip_packet.source_ip:02X}")
-            self.packets_dropped += 1
             print(f" Initiate Ip Traceback to find the source of the attack.")
-            self.ip_traceback()
+           
 
     def process_queue(self):
         """Process IP packets in the queue"""
         while self.is_running:
             # Add delay to simulate processing time
-            self.sleep_event.wait(timeout=1)
+            self.sleep_event.wait(timeout=0.5)
             try:
                 ip_packet = self.queue.get_nowait()
                 if ip_packet:
@@ -74,7 +77,9 @@ class TracebackNode(Node):
         """Perform IP traceback to identify attack sources in DDoS attacks."""
         # Sort nodes by their counts (least encountered first)
         if len(self.nodes)==0:
-            return "No nodes to traceback."
+            print ("No nodes to traceback yet.")
+            return
+        
         sorted_nodes = sorted(self.nodes.items(), key=lambda x: x[1])
     
 
@@ -85,7 +90,7 @@ class TracebackNode(Node):
 
         # Build the path from the sorted nodes
         for node, count in sorted_nodes:
-            print(f"Node {node} encountered {count} times.")
+            print(f"Node {hex(node)} encountered {count} times.")
             traceback_path.append(hex(node))
 
         # Create a string representation of the path with "->" arrows
@@ -95,7 +100,7 @@ class TracebackNode(Node):
 
         # Print the traceback path
         print(f"Traceback Path: {traceback_string}")
-        self.reset_nodes()
+        
 
         return traceback_string
     def reset_nodes(self):
@@ -146,6 +151,7 @@ class TracebackNode(Node):
         @self.command(
             "traceback", "- Use IP traceback to identify attack sources in DDoS attacks."
         )
-        def traceback_command(self):
-            print(self.queue)
+        def cmd_traceback(self,args):
+            self.ip_traceback()
+            self.reset_nodes()
 
