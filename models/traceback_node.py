@@ -1,6 +1,7 @@
 from models.node import Node
 import queue
 from models.ip_packet import IPPacket
+from models.ping_protocol import PingProtocol
 class TracebackNode(Node):
     """
     A node that has the capability to traceback attack from source.
@@ -32,7 +33,9 @@ class TracebackNode(Node):
                 
 
             # Handle different protocols
+            
             if ip_packet.protocol == PingProtocol.PROTOCOL:
+                print("hello")
                 self.handle_ping_protocol(ip_packet)
             else:
                 print(
@@ -49,7 +52,7 @@ class TracebackNode(Node):
         except queue.Full:
             print(f"  Queue full, dropping IP packet from 0x{ip_packet.source_ip:02X}")
             self.packets_dropped += 1
-            print(f"  Queue full,initiate Ip Traceback to find the source of the attack.")
+            print(f" Initiate Ip Traceback to find the source of the attack.")
             self.ip_traceback()
 
     def process_queue(self):
@@ -64,6 +67,7 @@ class TracebackNode(Node):
             except queue.Empty:
                 pass
             except Exception:
+                pass
                 
 
     def ip_traceback(self):
@@ -82,7 +86,7 @@ class TracebackNode(Node):
         # Build the path from the sorted nodes
         for node, count in sorted_nodes:
             print(f"Node {node} encountered {count} times.")
-            traceback_path.append(str(node))
+            traceback_path.append(hex(node))
 
         # Create a string representation of the path with "->" arrows
         traceback_string = " -> ".join(traceback_path)
