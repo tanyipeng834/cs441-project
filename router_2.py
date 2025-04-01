@@ -79,11 +79,14 @@ if __name__ == "__main__":
                     print(f"  0x{ip:02X} -> {node.mac_address}")
             elif command.lower() == "arp":
                 print("ARP tables:")
-                print("  R1 node:")
-                for ip, mac in r1_node.arp_table.items():
+                print("  R4 node:")
+                for ip, mac in r4_node.arp_table.items():
                     print(f"    0x{ip:02X} -> {mac}")
-                print("  R2 node:")
-                for ip, mac in r2_node.arp_table.items():
+                print("  R5 node:")
+                for ip, mac in r5_node.arp_table.items():
+                    print(f"    0x{ip:02X} -> {mac}")
+                print("  R6 node:")
+                for ip, mac in r6_node.arp_table.items():
                     print(f"    0x{ip:02X} -> {mac}")
             elif command.lower() == "ipsec":
 

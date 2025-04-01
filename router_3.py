@@ -56,7 +56,7 @@ if __name__ == "__main__":
 
     atexit.register(router.shutdown)
 
-    print("Router started with nodes R4 (0x41) and R5 (0x51) and R6 (0x61)")
+    print("Router started with nodes R7 (0x71) and R8 (0x81)")
     print("Available commands:")
     print("  routes - Display the routing table")
     print("  ipsec <mode> <ip> - Configure ipsec tunnel with another network")
@@ -80,11 +80,11 @@ if __name__ == "__main__":
                     print(f"  0x{ip:02X} -> {node.mac_address}")
             elif command.lower() == "arp":
                 print("ARP tables:")
-                print("  R1 node:")
-                for ip, mac in r1_node.arp_table.items():
+                print("  R7 node:")
+                for ip, mac in r7_node.arp_table.items():
                     print(f"    0x{ip:02X} -> {mac}")
                 print("  R2 node:")
-                for ip, mac in r2_node.arp_table.items():
+                for ip, mac in r8_node.arp_table.items():
                     print(f"    0x{ip:02X} -> {mac}")
             elif command.lower() == "ipsec":
 

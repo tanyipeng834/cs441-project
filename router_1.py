@@ -92,6 +92,9 @@ if __name__ == "__main__":
                 print("  R2 node:")
                 for ip, mac in r2_node.arp_table.items():
                     print(f"    0x{ip:02X} -> {mac}")
+                print("  R3 node:")
+                for ip, mac in r3_node.arp_table.items():
+                    print(f"    0x{ip:02X} -> {mac}")
             elif command.lower() == "ipsec":
 
                 if len(args) == 2:
