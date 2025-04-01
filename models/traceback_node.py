@@ -49,13 +49,14 @@ class TracebackNode(Node):
         except queue.Full:
             print(f"  Queue full, dropping IP packet from 0x{ip_packet.source_ip:02X}")
             self.packets_dropped += 1
-            
+            print(f"  Queue full,initiate Ip Traceback to find the source of the attack.")
+            self.ip_traceback()
 
     def process_queue(self):
         """Process IP packets in the queue"""
         while self.is_running:
             # Add delay to simulate processing time
-            self.sleep_event.wait(timeout=0.1)
+            self.sleep_event.wait(timeout=1)
             try:
                 ip_packet = self.queue.get_nowait()
                 if ip_packet:
@@ -63,7 +64,8 @@ class TracebackNode(Node):
             except queue.Empty:
                 pass
             except Exception:
-                pass
+                
+
     def ip_traceback(self):
         """Perform IP traceback to identify attack sources in DDoS attacks."""
         # Sort nodes by their counts (least encountered first)
@@ -84,15 +86,19 @@ class TracebackNode(Node):
 
         # Create a string representation of the path with "->" arrows
         traceback_string = " -> ".join(traceback_path)
+        
+
 
         # Print the traceback path
         print(f"Traceback Path: {traceback_string}")
+        self.reset_nodes()
 
         return traceback_string
     def reset_nodes(self):
         """Reset the node count periodically."""
         self.nodes = {}
-        print("Node counts reset.")
+        return
+
 
 
     def process_frame(self, frame):

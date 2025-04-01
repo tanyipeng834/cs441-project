@@ -132,9 +132,9 @@ class Router:
         # The AES key used for HMAC, we assume it's already derived
         key = self.aes_key
 
-        # Ensure the key is the right size for HMAC (SHA256 can take any size key)
-
-        # Compute the MAC using HMAC with SHA-256
+    
+        if isinstance(data, str):
+            data = data.encode('utf-8') 
         mac = hmac.new(key, data, hashlib.sha256).digest()
 
         return mac
@@ -174,7 +174,7 @@ class RouterNode(Node):
                 ipSecPacket = IPSecPacket.decode(ip_packet)
 
                 mac = self.router.compute_mac(ipSecPacket.ip_packet)
-                print(ipSecPacket)
+              
                 if mac != ipSecPacket.mac:
                     print(
                         "Integrity Check Failed. MAC Computed does not match the one in the packet. Discarding IP Packet."
@@ -182,12 +182,16 @@ class RouterNode(Node):
                     return
                 print("Integrity Check passed ! MAC matches the one in the ip packet.")
                 if ipSecPacket.mode == 1:
+        
                     ip_packet = IPPacket.decode(
                         self.router.decrypt_data(ipSecPacket.ip_packet)
                     )
+                    print("IP packet Decrypted with mutual key exchanged.")
+                    print(ip_packet)
 
                 else:
-                    ip_packet = IPPacket.decode(ipSecPacket.ip_packet)
+            
+                    ip_packet = IPPacket.decode(ipSecPacket.ip_packet.decode("utf-8"))
                     print(ip_packet)
 
         # If ipsec is not enabled, it means the packet would be an ip packet.
@@ -274,8 +278,10 @@ class RouterNode(Node):
             if self.router.ipsec_mode == 1:
                 # Change this to the encrypted packet if it is ESP
                 packet_data = self.router.encrypt_data(packet_data)
+                print("Encrypting IP Packet")
             # MAC have to be calculated if it is ESP or AH
             mac = self.router.compute_mac(packet_data)
+            print("Add HMAC for integrity check")
             ipSecPacket = IPSecPacket(
                 self.ip_address,
                 self.router.peer,
@@ -320,6 +326,7 @@ class RouterNode(Node):
                 # Try to parse as IP packet
                 try:
                     # For router nodes, don't simulate processing time
+                    
                     ip_packet = IPPacket.decode(data)
                     self.process_ip_packet(ip_packet)
                 except Exception:

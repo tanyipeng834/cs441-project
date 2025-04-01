@@ -99,20 +99,20 @@ if __name__ == "__main__":
                         break
                     dest_ip = args[1]
                     # used with udp
-                    source_ip = r4_node.ip_address
+                    source_ip = r7_node.ip_address
 
                     dest_ip = int(dest_ip, 16)
-                    if dest_ip not in r4_node.network_ips:
+                    if dest_ip not in r7_node.network_ips:
                         print(" Network not available")
                     else:
                         ip_packet = IPPacket(source_ip, dest_ip, 17, f"IKE{mode}")
-                        r4_node.send_ip_packet(ip_packet, r4_node.arp_table[dest_ip])
+                        r7_node.send_ip_packet(ip_packet, r7_node.arp_table[dest_ip])
                         router.mutual_key_exchange(int(mode), dest_ip)
 
                 else:
                     if len(args) == 1:
                         ip_packet = IPPacket(source_ip, dest_ip, 17, "IKE")
-                        r4_node.send_ip_packet(ip_packet, r4_node.arp_table[dest_ip])
+                        r7_node.send_ip_packet(ip_packet, r7_node.arp_table[dest_ip])
                         router.kill_tunnel()
                     else:
                         print(
