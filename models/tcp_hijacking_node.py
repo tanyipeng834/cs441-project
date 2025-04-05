@@ -155,7 +155,7 @@ class TCPHijackingNode(SniffingNode):
             try:
                 session_id = int(args[0])
                 spoof_ip = int(args[2], 16)
-                message = " ".join(args[3:])
+                message = " ".join(args[3:]) if len(args) > 3 else ""
 
                 if session_id not in self.tracked_sessions:
                     print(
@@ -173,7 +173,18 @@ class TCPHijackingNode(SniffingNode):
                 # Get the target IP automatically using the ip_map
                 target_ip = session.ip_map[spoof_ip]
 
-                # Hijack by sending data in the specified direction
+                # Enable promiscuous mode if it's not already on
+                if not self.promiscuous_mode:
+                    print("Enabling promiscuous mode to capture all network traffic")
+                    self.promiscuous_mode = True
+
+                # Perform ARP poisoning first - using your existing method
+                print(
+                    f"Performing ARP poisoning: telling 0x{target_ip:02X} that 0x{spoof_ip:02X} has our MAC address"
+                )
+                self.poison_arp(target_ip, spoof_ip)
+
+                # Now proceed with the hijacking
                 self.hijack_session(session, spoof_ip, target_ip, message)
 
             except ValueError as e:
@@ -264,6 +275,245 @@ class TCPHijackingNode(SniffingNode):
                 print(
                     "Make sure IP addresses are valid hex values (e.g., 2A or 0x2A) and ports are valid integers."
                 )
+
+        # Add a new command to show both TCP sessions and poisoned ARP entries
+        @self.command(
+            "hijack_status",
+            "- Show hijacking status including sessions and poisoned nodes",
+        )
+        def cmd_hijack_status(self, args):
+            """Show comprehensive status of hijacking operations"""
+            # Show TCP sessions first
+            if not self.tracked_sessions:
+                print("No TCP sessions being tracked")
+            else:
+                print("\n=== Tracked TCP Sessions ===")
+                for session_id, session in self.tracked_sessions.items():
+                    print(
+                        f"  #{session_id}: 0x{session.src_ip:02X}:{session.src_port} <-> 0x{session.dst_ip:02X}:{session.dst_port}"
+                    )
+                    print(
+                        f"     State: {session.state}, Packets: {session.packets_count}"
+                    )
+                    if session.state == "HIJACKED":
+                        print(f"     ** HIJACKED **")
+
+            # Show poisoned ARP entries
+            if hasattr(self, "poison_table") and self.poison_table:
+                print("\n=== Poisoned ARP Entries ===")
+                for target_mac, spoofed_ip in self.poison_table.items():
+                    print(
+                        f"  Node {target_mac} thinks {self.mac_address} has IP 0x{spoofed_ip:02X}"
+                    )
+            elif hasattr(self, "poison_table"):
+                print("\nNo ARP entries currently poisoned")
+            else:
+                print("\nARP poisoning capability not fully integrated")
+
+            print("\nFor a full attack, you need to:")
+            print("1. Activate sniffing: 'sniff on'")
+            print("2. Monitor sessions: 'sessions'")
+            print("3. Poison ARP tables: 'poison <target_ip> <spoofed_ip>'")
+            print("4. Hijack a session: 'hijack <id> as <ip> <msg>'")
+            print("   Or use the combined command: 'hijack_full <id> as <ip> <msg>'")
+
+        @self.command("end_hijack", "<session_id> - End a hijacked session")
+        def cmd_end_hijack(self, args):
+            """End a hijacked session and clean up resources"""
+            if not args:
+                print("Invalid input. Usage: end_hijack <session_id>")
+                return
+
+            try:
+                session_id = int(args[0])
+
+                if session_id not in self.tracked_sessions:
+                    print(f"Session #{session_id} not found.")
+                    return
+
+                session = self.tracked_sessions[session_id]
+
+                if session.state != "HIJACKED":
+                    print(f"Session #{session_id} is not currently hijacked.")
+                    return
+
+                # Send FIN packets to both ends to cleanly terminate the session
+                if hasattr(self, "last_spoofed_ip") and hasattr(self, "last_target_ip"):
+                    # Direction we were hijacking
+                    source_ip = self.last_spoofed_ip
+                    target_ip = self.last_target_ip
+
+                    # Determine ports based on which side we were impersonating
+                    if source_ip == session.src_ip:
+                        src_port = session.src_port
+                        dst_port = session.dst_port
+                        seq_num = session.src_seq
+                    else:
+                        src_port = session.dst_port
+                        dst_port = session.src_port
+                        seq_num = session.dst_seq
+
+                    # Create FIN packet to cleanly terminate
+                    from models.tcp_packet import TCPPacket
+
+                    tcp_packet = TCPPacket(
+                        src_port=src_port,
+                        dest_port=dst_port,
+                        seq_num=seq_num,
+                        ack_num=0,
+                        flags=TCPPacket.FIN,
+                        data="",
+                    )
+
+                    # Encode and send the packet
+                    tcp_data = tcp_packet.encode()
+                    from models.ip_packet import IPPacket
+
+                    ip_packet = IPPacket(
+                        source_ip=source_ip,
+                        dest_ip=target_ip,
+                        protocol=TCPPacket.PROTOCOL,
+                        data=tcp_data,
+                    )
+
+                    # Get MAC and send
+                    dest_mac = self.get_mac_for_ip(target_ip)
+                    if dest_mac:
+                        print(f"Sending FIN packet to gracefully terminate session...")
+                        self.send_frame(dest_mac, ip_packet.encode())
+
+                # Remove session from tracking
+                print(f"Removing hijacked session #{session_id}")
+                del self.tracked_sessions[session_id]
+
+                # Suggest cleaning up ARP poisoning
+                print("\nDon't forget to clean up any ARP poisoning if needed.")
+                if hasattr(self, "poison_table") and self.poison_table:
+                    print("Use 'poisoned' to see active ARP poisoning entries.")
+
+            except ValueError as e:
+                print(f"Error: {e}")
+
+        @self.command("reset", "- Reset all hijacking and poisoning state")
+        def cmd_reset(self, args):
+            """Reset all hijacking state and poisoning tables"""
+            # Clear tracked sessions
+            session_count = len(self.tracked_sessions)
+            self.tracked_sessions = {}
+            self.next_session_id = 1
+
+            # Clear poison table if it exists
+            poison_count = 0
+            if hasattr(self, "poison_table"):
+                poison_count = len(self.poison_table)
+                self.poison_table = {}
+
+            # Reset other state
+            if hasattr(self, "last_spoofed_ip"):
+                del self.last_spoofed_ip
+            if hasattr(self, "last_target_ip"):
+                del self.last_target_ip
+
+            print(
+                f"Reset complete: Cleared {session_count} tracked sessions and {poison_count} poisoned ARP entries."
+            )
+            print("Node is ready for new hijacking operations.")
+
+        # Add this combined command to the TCPHijackingNode class
+
+        @self.command(
+            "target_hijack",
+            "<session_id> as <ip_hex> <message> - Targeted RST + ARP poisoning",
+        )
+        def cmd_target_hijack(self, args):
+            """
+            Execute a targeted hijack with RST packet + ARP poisoning
+            """
+            if len(args) < 3 or args[1].lower() != "as":
+                print(
+                    "Invalid input. Usage: target_hijack <session_id> as <ip_hex> <message>"
+                )
+                return
+
+            try:
+                session_id = int(args[0])
+                spoof_ip = int(args[2], 16)
+                message = " ".join(args[3:])
+
+                if session_id not in self.tracked_sessions:
+                    print(
+                        f"Session #{session_id} not found. Use 'sessions' to see available sessions."
+                    )
+                    return
+
+                session = self.tracked_sessions[session_id]
+
+                # Verify the IP is part of the session
+                if spoof_ip != session.src_ip and spoof_ip != session.dst_ip:
+                    print(f"Error: IP 0x{spoof_ip:02X} is not part of this session")
+                    return
+
+                # Get the target IP automatically using the ip_map
+                target_ip = session.ip_map[spoof_ip]
+
+                # First, perform ARP poisoning to ensure we receive responses
+                if hasattr(self, "poison_arp"):
+                    print(
+                        f"Performing ARP poisoning: telling 0x{target_ip:02X} that 0x{spoof_ip:02X} has our MAC address"
+                    )
+                    self.poison_arp(target_ip, spoof_ip)
+                else:
+                    print(
+                        "Warning: ARP poisoning capability not available, adding it now..."
+                    )
+
+                    # Add poison_arp method if it doesn't exist
+                    def poison_arp(self, target_ip, spoofed_ip):
+                        """Add basic ARP poisoning capability"""
+                        # Find target MAC
+                        target_mac = None
+                        for ip, mac in self.arp_table.items():
+                            if ip == target_ip:
+                                target_mac = mac
+                                break
+
+                        if target_mac:
+                            # Create poisoned ARP packet
+                            from models.arp_packet import ARPPacket
+
+                            arp_packet = ARPPacket(
+                                ARPPacket.REPLY, self.mac_address, spoofed_ip
+                            )
+                            packet_data = arp_packet.encode()
+                            print(arp_packet)
+
+                            # Keep track of poisoned entries
+                            if not hasattr(self, "poison_table"):
+                                self.poison_table = {}
+
+                            self.poison_table[target_mac] = spoofed_ip
+                            print(
+                                f"Sending spoofed ARP response to {target_mac} claiming {self.mac_address} has IP 0x{spoofed_ip:02X}"
+                            )
+                            self.send_frame(target_mac, packet_data)
+                        else:
+                            print(
+                                f"Unknown target IP 0x{target_ip:02X}. Cannot send ARP spoof."
+                            )
+
+                    # Dynamically add the method if it doesn't exist
+                    import types
+
+                    self.poison_arp = types.MethodType(poison_arp, self)
+
+                    # Now perform the poisoning
+                    self.poison_arp(target_ip, spoof_ip)
+
+                # Now proceed with the targeted hijacking
+                self.hijack_session(session, spoof_ip, target_ip, message)
+
+            except ValueError as e:
+                print(f"Error: {e}")
 
     def process_frame(self, frame):
         """
@@ -451,7 +701,11 @@ class TCPHijackingNode(SniffingNode):
         return "|".join(flags) if flags else "NONE"
 
     def hijack_session(self, session, source_ip, target_ip, message):
-        """Hijack session by spoofing as source IP and sending to target IP"""
+        """
+        Hijack session by spoofing as source IP and sending to target IP
+
+        This version ensures RST packets only affect the intended recipient
+        """
         print(
             f"Hijacking session #{session.session_id}: 0x{source_ip:02X} → 0x{target_ip:02X}"
         )
@@ -462,21 +716,35 @@ class TCPHijackingNode(SniffingNode):
 
         # Determine ports and sequence numbers based on direction
         if source_ip == session.src_ip and target_ip == session.dst_ip:
-            # Direction: src -> dst
+            # Direction: client -> server (impersonating client)
             src_port = session.src_port
             dst_port = session.dst_port
             seq_num = session.src_seq
             ack_num = session.src_ack
+
+            # If impersonating client, send RST from server -> client to disconnect client
+            print(
+                f"Sending targeted RST to disconnect real client at 0x{source_ip:02X}..."
+            )
+            self.send_reset_packet(target_ip, dst_port, source_ip, src_port, ack_num)
         else:
-            # Direction: dst -> src
+            # Direction: server -> client (impersonating server)
             src_port = session.dst_port
             dst_port = session.src_port
             seq_num = session.dst_seq
             ack_num = session.dst_ack
 
-        # First, send RST to the real endpoint we're impersonating
-        print(f"Sending RST to disconnect real host at 0x{source_ip:02X}...")
-        self.send_reset_packet(target_ip, dst_port, source_ip, src_port, ack_num)
+            # If impersonating server, send RST from client -> server to disconnect server
+            print(
+                f"Sending targeted RST to disconnect real server at 0x{source_ip:02X}..."
+            )
+            self.send_reset_packet(target_ip, dst_port, source_ip, src_port, ack_num)
+
+        # We MUST do ARP poisoning to intercept responses from the target
+        print(
+            f"Note: You MUST run ARP poisoning to intercept responses from 0x{target_ip:02X}"
+        )
+        print(f"Suggestion: Run 'poison {target_ip:x} {source_ip:x}' command")
 
         # Now send spoofed data
         print(f"Sending spoofed message to 0x{target_ip:02X} as 0x{source_ip:02X}...")
@@ -568,38 +836,202 @@ class TCPHijackingNode(SniffingNode):
         else:
             print(f"No route to host 0x{dst_ip:02X}")
 
+    # Enhanced version of send_reset_packet method
     def send_reset_packet(self, src_ip, src_port, dst_ip, dst_port, seq_num):
-        """Send a spoofed RST packet to terminate a connection"""
-        # Create RST packet
+        """
+        Send a carefully crafted RST packet to terminate ONLY the target's connection
+
+        The key issue is ensuring the RST packet is only processed by the intended target.
+        By crafting an Ethernet frame with a specific destination MAC, we ensure the RST
+        packet is only delivered to the intended node.
+
+        Args:
+            src_ip: Source IP (spoofed) - will appear to be from this IP
+            src_port: Source port
+            dst_ip: Destination IP - the node we want to disconnect
+            dst_port: Destination port
+            seq_num: Sequence number for the RST packet
+        """
+        # Get the MAC address of ONLY the target we want to disconnect
+        target_mac = None
+        for ip, mac in self.arp_table.items():
+            if ip == dst_ip:
+                target_mac = mac
+                break
+
+        if not target_mac:
+            print(f"Error: Could not find MAC address for IP 0x{dst_ip:02X}")
+            return False
+
+        print(f"Sending targeted RST packet to: {target_mac} (0x{dst_ip:02X})")
+
+        # Create a carefully crafted RST packet
+        from models.tcp_packet import TCPPacket
+
         tcp_packet = TCPPacket(
             src_port=src_port,
             dest_port=dst_port,
-            seq_num=seq_num,
+            seq_num=seq_num,  # Use current sequence number to ensure it's accepted
             ack_num=0,  # Not needed for RST
             flags=TCPPacket.RST,
             data="",
         )
 
-        # Encode the TCP packet
+        # Encode TCP packet
         tcp_data = tcp_packet.encode()
 
-        # Create spoofed IP packet
+        # Create IP packet with spoofed source IP
+        from models.ip_packet import IPPacket
+
         ip_packet = IPPacket(
-            source_ip=src_ip,  # Spoofed source IP
-            dest_ip=dst_ip,
+            source_ip=src_ip,  # This appears to be from the peer (spoofed)
+            dest_ip=dst_ip,  # The node we want to disconnect
             protocol=TCPPacket.PROTOCOL,
             data=tcp_data,
         )
 
-        # Get destination MAC address
-        dest_mac = self.get_mac_for_ip(dst_ip)
+        # Encode the IP packet
+        ip_data = ip_packet.encode()
 
-        # Send the packet
-        if dest_mac:
-            ip_data = ip_packet.encode()
+        # Now we directly create and send the Ethernet frame
+        # This ensures the packet ONLY goes to the intended target
+        print(
+            f"Sending targeted Ethernet frame to {target_mac} with spoofed IP 0x{src_ip:02X}"
+        )
+        self.send_frame(target_mac, ip_data)
+
+        return True
+
+    def poison_arp(self, target_ip, spoofed_ip):
+        """
+        Send a fake ARP response to poison the ARP table of other nodes.
+        This method adapts the poisoning functionality from ARPPoisoningNode.
+
+        Args:
+            target_ip: IP address of the target node to poison (hex value)
+            spoofed_ip: IP address to spoof (hex value) - our MAC will be associated with this IP
+        """
+        # Check if we already have this method (might be inherited)
+        if hasattr(self, "poison_table"):
+            # We likely inherited from ARPPoisoningNode, use that implementation
+            super().poison_arp(target_ip, spoofed_ip)
+            return
+
+        # We need to find the MAC address of the target node
+        target_mac = None
+        for ip, mac in self.arp_table.items():
+            if ip == target_ip:
+                target_mac = mac
+                break
+
+        if target_mac:
+            # Create poisoned ARP packet
+            from models.arp_packet import ARPPacket
+
+            arp_packet = ARPPacket(ARPPacket.REPLY, self.mac_address, spoofed_ip)
+            packet_data = arp_packet.encode()
+            print(arp_packet)
+
+            # Keep track of poisoned entries (create the table if it doesn't exist)
+            if not hasattr(self, "poison_table"):
+                self.poison_table = {}
+
+            # Add the poisoned entry to our table
+            self.poison_table[target_mac] = spoofed_ip
+
             print(
-                f"Sending spoofed RST packet from 0x{src_ip:02X}:{src_port} to 0x{dst_ip:02X}:{dst_port}"
+                f"Sending spoofed ARP response to {target_mac} claiming {self.mac_address} has IP 0x{spoofed_ip:02X}"
             )
-            self.send_frame(dest_mac, ip_data)
+
+            # Send the fake ARP response in an Ethernet frame to the target
+            self.send_frame(target_mac, packet_data)
         else:
-            print(f"No route to host 0x{dst_ip:02X}")
+            print(f"Unknown target IP 0x{target_ip:02X}. Cannot send ARP spoof.")
+
+    def process_ip_packet(self, ip_packet):
+        """
+        Override the process_ip_packet method to accept packets meant for IPs we're spoofing
+        """
+        # Accept packets for our real IP address
+        if ip_packet.dest_ip == self.ip_address or ip_packet.dest_ip == 0xFF:
+            # Process normally using parent class method
+            super().process_ip_packet(ip_packet)
+            return
+
+        # Check if we're hijacking any sessions and are spoofing an IP address
+        if (
+            hasattr(self, "last_spoofed_ip")
+            and ip_packet.dest_ip == self.last_spoofed_ip
+        ):
+            print(
+                f"  Received IP packet addressed to spoofed IP 0x{ip_packet.dest_ip:02X} (we're impersonating this node)"
+            )
+            print(
+                f"  From: 0x{ip_packet.source_ip:02X}, Protocol: {ip_packet.protocol}"
+            )
+
+            # Handle different protocols
+            if ip_packet.protocol == 0:  # Ping protocol
+                self.handle_ping_protocol(ip_packet)
+            elif ip_packet.protocol == 6:  # TCP protocol
+                try:
+                    from models.tcp_packet import TCPPacket
+
+                    tcp_packet = TCPPacket.decode(ip_packet.data)
+                    print(f"  Received TCP packet for hijacked session: {tcp_packet}")
+
+                    # Extract and display any data
+                    if tcp_packet.is_psh() and tcp_packet.data:
+                        data_content = ""
+                        if isinstance(tcp_packet.data, bytes):
+                            try:
+                                data_content = tcp_packet.data.decode("utf-8")
+                            except UnicodeDecodeError:
+                                data_content = (
+                                    f"<binary data of {len(tcp_packet.data)} bytes>"
+                                )
+                        else:
+                            data_content = tcp_packet.data
+
+                        print(
+                            f'\nReceived message in hijacked session from 0x{ip_packet.source_ip:02X}: "{data_content}"\n'
+                        )
+
+                        # Send ACK
+                        self.send_tcp_ack(
+                            ip_packet.source_ip, tcp_packet, ip_packet.dest_ip
+                        )
+
+                except Exception as e:
+                    print(f"  Error processing TCP packet: {e}")
+            else:
+                print(f"  Unknown protocol: {ip_packet.protocol}")
+        else:
+            # Default behavior for other packets
+            print(f"  Dropped IP packet intended for 0x{ip_packet.dest_ip:02X}")
+
+    # 2. Add a helper method to send TCP ACKs for received data
+    def send_tcp_ack(self, dest_ip, tcp_packet, source_ip):
+        """Send an ACK for TCP data"""
+        from models.tcp_packet import TCPPacket
+
+        # Calculate next sequence number
+        next_seq = (
+            tcp_packet.seq_num + len(tcp_packet.data)
+            if tcp_packet.data
+            else tcp_packet.seq_num + 1
+        )
+
+        # Create ACK packet
+        ack_packet = TCPPacket(
+            src_port=tcp_packet.dest_port,
+            dest_port=tcp_packet.src_port,
+            seq_num=tcp_packet.ack_num,
+            ack_num=next_seq,
+            flags=TCPPacket.ACK,
+            data="",
+        )
+
+        # Send it
+        print(f"  Sending ACK for received data in hijacked session")
+        self.send_tcp_packet(dest_ip, ack_packet)

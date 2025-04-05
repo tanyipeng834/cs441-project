@@ -6,7 +6,7 @@ from utils.routing import R2_ARP_TABLE, R2_NETWORK
 
 if __name__ == "__main__":
     # Create Node 9 with IP address 0x2C
-    node = TCPHijackingNode("N9", 0x2C, 50002, R2_NETWORK, default_gateway="R2")
+    node = TCPHijackingNode("N9", 0x2C, 50009, R2_NETWORK, default_gateway="R2")
 
     # Initialize ARP table - Node2 knows about itself, Node3, and R2 in its network
     node.init_arp_table(

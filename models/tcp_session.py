@@ -174,7 +174,18 @@ class TCPSession:
 
         elif self.state == TCPSession.ESTABLISHED:
             # Handle data transfer
-            if tcp_packet.is_fin():
+            # Handle data transfer
+            if tcp_packet.is_rst():
+                # Connection reset by peer
+                print(
+                    f"\nConnection reset by 0x{source_ip:02X}:{tcp_packet.src_port}\n"
+                )
+                self.state = TCPSession.CLOSED
+                # IMPORTANT: Instead of returning None, we'll return a special flag
+                # to indicate that this connection should be closed but not affect other connections
+                return "CLOSE_ONLY_THIS_END"
+
+            elif tcp_packet.is_fin():
                 # Remote wants to close connection
                 self.state = TCPSession.LAST_ACK
                 self.next_seq = tcp_packet.seq_num + 1

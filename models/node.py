@@ -41,18 +41,22 @@ class Node:
             "N1": 50001,
             "N2": 50002,
             "N3": 50003,
-            "R1": 50004,
-            "R2": 50005,
-            "N4": 50009,
-            "R3": 50006,
-            "R4": 50007,
-            "R5": 50008,
+            "N4": 50004,
+            "N5": 50005,
             "N6": 50006,
-            "N7": 50010,
+            "N7": 50007,
             "N8": 50008,
             "N9": 50009,
             "NA": 50010,
             "NB": 50011,
+            "R1": 50012,
+            "R2": 50013,
+            "R3": 50014,
+            "R4": 50015,
+            "R5": 50016,
+            "R6": 50017,
+            "R7": 50018,
+            "R8": 50019,
         }
 
         # TCP-specific attributes
@@ -528,27 +532,6 @@ class Node:
         # Check if this matches an existing session
         session_key = (tcp_packet.dest_port, source_ip, tcp_packet.src_port)
 
-        # Special handling for SYN-ACK packets in client mode
-        if tcp_packet.is_syn() and tcp_packet.is_ack():
-            # This might be a response to our SYN, let's check all sessions
-            for key, session in self.tcp_sessions.items():
-                if (
-                    session.state == TCPSession.SYN_SENT
-                    and session.local_port == tcp_packet.dest_port
-                    and session.remote_port == tcp_packet.src_port
-                    and session.remote_ip == source_ip
-                ):
-
-                    response = session.handle_packet(tcp_packet, source_ip)
-
-                    # Send response if needed
-                    if response:
-                        self.send_tcp_packet(source_ip, response)
-                    else:
-                        print(f"TCP DEBUG: No response needed for SYN-ACK")
-
-                    return
-
         # Normal session lookup
         if session_key in self.tcp_sessions:
             # Existing session
@@ -571,6 +554,12 @@ class Node:
 
             # Process the packet
             response = session.handle_packet(tcp_packet, source_ip)
+
+            # NEW CODE: Check for the special flag "CLOSE_ONLY_THIS_END"
+            if response == "CLOSE_ONLY_THIS_END":
+                print(f"Closing only this end of the TCP connection due to RST")
+                del self.tcp_sessions[session_key]
+                return
 
             # Check if session should be removed (closed)
             if session.state == TCPSession.CLOSED:
