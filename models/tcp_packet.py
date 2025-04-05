@@ -1,3 +1,6 @@
+import traceback
+
+
 class TCPPacket:
     """
     Represents a simplified TCP packet with format:
@@ -31,36 +34,116 @@ class TCPPacket:
         self.data = data
 
     def encode(self):
-        """Convert TCP packet to string representation"""
-        # Encode the sequence and acknowledgment numbers (2 bytes each)
-        seq_bytes = chr(self.seq_num >> 8) + chr(self.seq_num & 0xFF)
-        ack_bytes = chr(self.ack_num >> 8) + chr(self.ack_num & 0xFF)
+        """Convert TCP packet to binary representation"""
+        # print(f"[DEBUG] TCP_ENCODE: START - packet={self}")
+        # print(
+        #     f"[DEBUG] TCP_ENCODE: src_port={self.src_port}, dst_port={self.dest_port}, seq={self.seq_num}, ack={self.ack_num}, flags={self.flags}"
+        # )
 
-        # Combine all fields
-        header = f"{chr(self.src_port)}{chr(self.dest_port)}{seq_bytes}{ack_bytes}{chr(self.flags)}"
-        return header + self.data
+        # Create a bytearray for the packet
+        result = bytearray()
+
+        # Add source and destination ports (1 byte each)
+        result.append(self.src_port & 0xFF)
+        result.append(self.dest_port & 0xFF)
+
+        # Add sequence number (2 bytes, big endian)
+        result.append((self.seq_num >> 8) & 0xFF)
+        result.append(self.seq_num & 0xFF)
+
+        # Add acknowledgment number (2 bytes, big endian)
+        result.append((self.ack_num >> 8) & 0xFF)
+        result.append(self.ack_num & 0xFF)
+
+        # Add flags (1 byte)
+        result.append(self.flags & 0xFF)
+
+        # Add data if any
+        if self.data:
+            if isinstance(self.data, str):
+                result.extend(self.data.encode("utf-8"))
+            elif isinstance(self.data, bytes) or isinstance(self.data, bytearray):
+                result.extend(self.data)
+            # else:
+            #     print(f"[DEBUG] TCP_ENCODE: Unknown data type: {type(self.data)}")
+
+        # Convert to bytes object
+        packet_bytes = bytes(result)
+
+        # print(
+        #     f"[DEBUG] TCP_ENCODE: header_length=7, data_length={len(packet_bytes) - 7}"
+        # )
+        # print(
+        #     f"[DEBUG] TCP_ENCODE: header bytes in hex: {' '.join([f'{b:02X}' for b in packet_bytes[:7]])}"
+        # )
+        # print(
+        #     f"[DEBUG] TCP_ENCODE: result_type={type(packet_bytes)}, length={len(packet_bytes)}"
+        # )
+        # print(
+        #     f"[DEBUG] TCP_ENCODE: first 10 bytes: {' '.join([f'{b:02X}' for b in packet_bytes[:10]])}"
+        # )
+        # print(f"[DEBUG] TCP_ENCODE: END")
+
+        return packet_bytes
 
     @staticmethod
     def decode(packet_data):
-        """Decode string representation back to TCP packet"""
+        """Decode binary representation back to TCP packet"""
         try:
-            if len(packet_data) < 7:
-                raise ValueError("Packet too short to be a TCP packet")
+            # print(f"[DEBUG] TCP_DECODE: START")
+            # print(
+            #     f"[DEBUG] TCP_DECODE: data_type={type(packet_data)}, length={len(packet_data)}"
+            # )
 
-            src_port = ord(packet_data[0])
-            dest_port = ord(packet_data[1])
+            # Make sure we're working with bytes
+            if isinstance(packet_data, str):
+                # print(f"[DEBUG] TCP_DECODE: Converting string to bytes")
+                packet_bytes = bytearray()
+                for c in packet_data:
+                    packet_bytes.append(ord(c))
+                packet_bytes = bytes(packet_bytes)
+            else:
+                packet_bytes = packet_data
 
-            # Decode sequence and acknowledgment numbers (2 bytes each)
-            seq_num = (ord(packet_data[2]) << 8) + ord(packet_data[3])
-            ack_num = (ord(packet_data[4]) << 8) + ord(packet_data[5])
+            # print(
+            #     f"[DEBUG] TCP_DECODE: packet_bytes: {' '.join([f'{b:02X}' for b in packet_bytes[:min(10, len(packet_bytes))]])}"
+            # )
 
-            flags = ord(packet_data[6])
+            if len(packet_bytes) < 7:
+                raise ValueError(
+                    f"Packet too short to be a TCP packet: length={len(packet_bytes)}"
+                )
 
-            # Extract data
-            data = packet_data[7:] if len(packet_data) > 7 else ""
+            # Extract header fields
+            src_port = packet_bytes[0]
+            dest_port = packet_bytes[1]
+            seq_num = (packet_bytes[2] << 8) + packet_bytes[3]
+            ack_num = (packet_bytes[4] << 8) + packet_bytes[5]
+            flags = packet_bytes[6]
 
-            return TCPPacket(src_port, dest_port, seq_num, ack_num, flags, data)
+            # print(
+            #     f"[DEBUG] TCP_DECODE: src_port={src_port}, dst_port={dest_port}, seq={seq_num}, ack={ack_num}, flags={flags}"
+            # )
+
+            # Extract data (remaining bytes after header)
+            data = b""
+            if len(packet_bytes) > 7:
+                data = packet_bytes[7:]
+                # print(
+                #     f"[DEBUG] TCP_DECODE: data length={len(data)}, first few bytes: {' '.join([f'{b:02X}' for b in data[:min(10, len(data))]])}"
+                # )
+            # else:
+            #     print(f"[DEBUG] TCP_DECODE: no data present")
+
+            # Create the TCP packet
+            packet = TCPPacket(src_port, dest_port, seq_num, ack_num, flags, data)
+            # print(f"[DEBUG] TCP_DECODE: Created packet: {packet}")
+            # print(f"[DEBUG] TCP_DECODE: END")
+
+            return packet
         except Exception as e:
+            print(f"[ERROR] TCP_DECODE_ERROR: {e}")
+            traceback.print_exc()
             raise ValueError(f"Failed to decode TCP packet: {e}")
 
     def is_syn(self):
@@ -99,8 +182,14 @@ class TCPPacket:
 
         flags = "|".join(flag_str) if flag_str else "NONE"
 
+        data_len = 0
+        if isinstance(self.data, str):
+            data_len = len(self.data)
+        elif isinstance(self.data, bytes) or isinstance(self.data, bytearray):
+            data_len = len(self.data)
+
         return (
             f"TCP[src_port={self.src_port}, dst_port={self.dest_port}, "
             f"seq={self.seq_num}, ack={self.ack_num}, flags={flags}, "
-            f"data_len={len(self.data)}]"
+            f"data_len={data_len}]"
         )

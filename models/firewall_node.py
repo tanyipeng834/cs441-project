@@ -1,6 +1,7 @@
 from models.node import Node
 from models.ip_packet import IPPacket
 from models.ping_protocol import PingProtocol
+from models.tcp_packet import TCPPacket
 
 
 class FirewallNode(Node):
@@ -42,6 +43,14 @@ class FirewallNode(Node):
             # Handle different protocols
             if ip_packet.protocol == PingProtocol.PROTOCOL:
                 self.handle_ping_protocol(ip_packet)
+            elif ip_packet.protocol == 6:  # TCP protocol
+                try:
+                    tcp_packet = TCPPacket.decode(ip_packet.data)
+                    print(f"  Received TCP packet: {tcp_packet}")
+                    self.process_tcp_packet(tcp_packet, ip_packet.source_ip)
+                except Exception as e:
+                    print(f"  Error processing TCP packet: {e}")
+                    print(f"  TCP data: {ip_packet.data}")
             else:
                 print(
                     f"  Unknown protocol: {ip_packet.protocol}, Data: {ip_packet.data}"

@@ -61,9 +61,15 @@ class ARPPoisoningNode(Node):
                 # Try to parse as IP packet
                 try:
                     ip_packet = IPPacket.decode(data)
-                    self.add_ip_packet_to_queue(ip_packet, source_mac)
-                except Exception:
-                    print(f"  Data: {data}")
+                    self.process_ip_packet(ip_packet, source_mac)
+                except Exception as e:
+                    print(f"  Failed to decode IP packet: {e}")
+                    if isinstance(data, bytes):
+                        print(
+                            f"  Data (bytes): {' '.join([f'{b:02X}' for b in data[:min(20, len(data))]])}"
+                        )
+                    else:
+                        print(f"  Data: {data}")
 
             elif destination_mac == self.mac_address:
                 print(
@@ -71,7 +77,16 @@ class ARPPoisoningNode(Node):
                 )
 
                 # Check if it's an ARP packet (starts with 'ARP')
-                if data.startswith("ARP"):
+                if isinstance(data, bytes) and data.startswith(b"ARP"):
+                    try:
+                        # Convert bytes to string for ARP packet
+                        arp_data = data.decode("utf-8")
+                        arp_packet = ARPPacket.decode(arp_data)
+                        print(f"  Received ARP packet: {arp_packet}")
+                        self.process_arp_packet(arp_packet)
+                    except ValueError as e:
+                        print(f"  Error decoding ARP packet: {e}")
+                elif isinstance(data, str) and data.startswith("ARP"):
                     try:
                         arp_packet = ARPPacket.decode(data)
                         print(f"  Received ARP packet: {arp_packet}")
@@ -83,9 +98,15 @@ class ARPPoisoningNode(Node):
                     try:
                         ip_packet = IPPacket.decode(data)
                         # Use base class method to process IP packet
-                        super().add_ip_packet_to_queue(ip_packet)
+                        super().process_ip_packet(ip_packet)
                     except Exception as e:
-                        print(f"  Data: {data}")
+                        print(f"  Failed to decode IP packet: {e}")
+                        if isinstance(data, bytes):
+                            print(
+                                f"  Data (bytes): {' '.join([f'{b:02X}' for b in data[:min(20, len(data))]])}"
+                            )
+                        else:
+                            print(f"  Data: {data}")
 
             else:
                 print(
@@ -94,6 +115,9 @@ class ARPPoisoningNode(Node):
 
         except Exception as e:
             print(f"Error processing frame: {frame} - {e}")
+            import traceback
+
+            traceback.print_exc()
 
     def add_ip_packet_to_queue(self, ip_packet: IPPacket, source_mac):
         """Add an IP packet to the processing queue"""

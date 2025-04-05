@@ -32,7 +32,8 @@ class TCPSession:
         self.received_data = []
         self.send_buffer = []
 
-        # Window size removed
+        # Connection established flag to prevent multiple notifications
+        self.connection_established_notified = False
 
     def set_remote_endpoint(self, remote_ip, remote_port):
         """Set the remote endpoint details"""
@@ -55,8 +56,6 @@ class TCPSession:
         # Update state
         self.state = TCPSession.SYN_SENT
 
-        print(f"Initiating TCP connection to {self.remote_ip}:{self.remote_port}")
-
         # Return a SYN packet
         from models.tcp_packet import TCPPacket
 
@@ -76,9 +75,25 @@ class TCPSession:
         """
         from models.tcp_packet import TCPPacket
 
+        # Create a debug string for the packet
+        flags_str = []
+        if tcp_packet.is_syn():
+            flags_str.append("SYN")
+        if tcp_packet.is_ack():
+            flags_str.append("ACK")
+        if tcp_packet.is_fin():
+            flags_str.append("FIN")
+        if tcp_packet.is_rst():
+            flags_str.append("RST")
+        if tcp_packet.is_psh():
+            flags_str.append("PSH")
+        flags = "|".join(flags_str) if flags_str else "NONE"
+
         # Check if this is from our expected remote endpoint
         if self.state != TCPSession.LISTEN and self.remote_ip != source_ip:
-            print(f"Unexpected packet from {source_ip}, expected {self.remote_ip}")
+            print(
+                f"TCP SESSION DEBUG: Unexpected packet from 0x{source_ip:02X}, expected 0x{self.remote_ip:02X}"
+            )
             # Send RST packet for unexpected connection
             return TCPPacket(
                 src_port=self.local_port,
@@ -86,7 +101,7 @@ class TCPSession:
                 seq_num=self.seq_num,
                 ack_num=0,
                 flags=TCPPacket.RST,
-                data="",
+                data=b"",
             )
 
         # Handle based on current state
@@ -99,10 +114,6 @@ class TCPSession:
                 self.seq_num = 2000  # Our initial sequence number (simplified)
                 self.state = TCPSession.SYN_RECEIVED
 
-                print(
-                    f"Received SYN from {source_ip}:{tcp_packet.src_port}, sending SYN-ACK"
-                )
-
                 # Send SYN-ACK
                 return TCPPacket(
                     src_port=self.local_port,
@@ -110,40 +121,55 @@ class TCPSession:
                     seq_num=self.seq_num,
                     ack_num=self.next_seq,
                     flags=TCPPacket.SYN | TCPPacket.ACK,
-                    data="",
+                    data=b"",
                 )
 
         elif self.state == TCPSession.SYN_SENT:
             if tcp_packet.is_syn() and tcp_packet.is_ack():
                 # Received SYN-ACK, move to ESTABLISHED
+                # Check that they're acknowledging our SYN
                 if tcp_packet.ack_num == self.seq_num + 1:
-                    self.seq_num = tcp_packet.ack_num
-                    self.next_seq = tcp_packet.seq_num + 1
+
+                    self.seq_num = tcp_packet.ack_num  # Update our sequence number
+                    self.next_seq = tcp_packet.seq_num + 1  # Their sequence number + 1
                     self.state = TCPSession.ESTABLISHED
 
-                    print(
-                        f"Received SYN-ACK, connection established with {self.remote_ip}:{self.remote_port}"
-                    )
+                    # Print connection established message for client side
+                    if not self.connection_established_notified:
+                        print(
+                            f"\nConnection established with 0x{self.remote_ip:02X}:{self.remote_port}\n"
+                        )
+                        self.connection_established_notified = True
 
-                    # Send ACK
+                    # Send ACK to complete the handshake
                     return TCPPacket(
                         src_port=self.local_port,
                         dest_port=self.remote_port,
                         seq_num=self.seq_num,
                         ack_num=self.next_seq,
                         flags=TCPPacket.ACK,
-                        data="",
+                        data=b"",
+                    )
+                else:
+                    print(
+                        f"TCP SESSION DEBUG: Invalid ACK in SYN-ACK: {tcp_packet.ack_num}, expected {self.seq_num+1}"
                     )
 
         elif self.state == TCPSession.SYN_RECEIVED:
             if tcp_packet.is_ack():
                 # Final ACK received, connection established
-                self.state = TCPSession.ESTABLISHED
-                self.seq_num = tcp_packet.ack_num
-
-                print(
-                    f"Connection established with {self.remote_ip}:{self.remote_port}"
+                self.seq_num += (
+                    1  # Add this line to increment sequence number after SYN-ACK
                 )
+                self.state = TCPSession.ESTABLISHED
+
+                # Print connection established message for server side
+                if not self.connection_established_notified:
+                    print(
+                        f"\nConnection established with 0x{self.remote_ip:02X}:{self.remote_port}\n"
+                    )
+                    self.connection_established_notified = True
+
                 return None
 
         elif self.state == TCPSession.ESTABLISHED:
@@ -153,8 +179,6 @@ class TCPSession:
                 self.state = TCPSession.LAST_ACK
                 self.next_seq = tcp_packet.seq_num + 1
 
-                print(f"Received FIN from {self.remote_ip}:{self.remote_port}")
-
                 # Send FIN-ACK
                 return TCPPacket(
                     src_port=self.local_port,
@@ -162,19 +186,27 @@ class TCPSession:
                     seq_num=self.seq_num,
                     ack_num=self.next_seq,
                     flags=TCPPacket.FIN | TCPPacket.ACK,
-                    data="",
+                    data=b"",
                 )
 
             elif len(tcp_packet.data) > 0:
                 # Data packet
+                data_len = len(tcp_packet.data)
+
                 if tcp_packet.seq_num == self.next_seq:
                     # In-sequence data
-                    self.received_data.append(tcp_packet.data)
-                    self.next_seq = tcp_packet.seq_num + len(tcp_packet.data)
+                    # Convert data to string if it's bytes
+                    if isinstance(tcp_packet.data, bytes):
+                        try:
+                            data_str = tcp_packet.data.decode("utf-8")
+                            self.received_data.append(data_str)
+                        except UnicodeDecodeError:
+                            # If we can't decode as UTF-8, store raw bytes
+                            self.received_data.append(tcp_packet.data)
+                    else:
+                        self.received_data.append(tcp_packet.data)
 
-                    print(
-                        f"Received {len(tcp_packet.data)} bytes from {self.remote_ip}:{self.remote_port}"
-                    )
+                    self.next_seq = tcp_packet.seq_num + data_len
 
                     # Send ACK
                     return TCPPacket(
@@ -183,31 +215,28 @@ class TCPSession:
                         seq_num=self.seq_num,
                         ack_num=self.next_seq,
                         flags=TCPPacket.ACK,
-                        data="",
+                        data=b"",
                     )
                 else:
-                    # Out of sequence, send duplicate ACK
-                    print(
-                        f"Out of sequence data from {self.remote_ip}:{self.remote_port}"
-                    )
 
+                    # Out of sequence, send duplicate ACK
                     return TCPPacket(
                         src_port=self.local_port,
                         dest_port=self.remote_port,
                         seq_num=self.seq_num,
                         ack_num=self.next_seq,
                         flags=TCPPacket.ACK,
-                        data="",
+                        data=b"",
                     )
 
         elif self.state == TCPSession.LAST_ACK:
             if tcp_packet.is_ack():
                 # Connection closed
                 self.state = TCPSession.CLOSED
-                print(f"Connection with {self.remote_ip}:{self.remote_port} closed")
                 return None
 
         # Default response - no action needed
+
         return None
 
     def send_data(self, data):
@@ -215,9 +244,19 @@ class TCPSession:
         Prepare a packet to send data over the established connection
         """
         if self.state != TCPSession.ESTABLISHED:
-            raise ValueError(f"Cannot send data in current state: {self.state}")
+            raise ValueError(
+                f"Cannot send data in current state: {self.get_state_name()}"
+            )
 
         from models.tcp_packet import TCPPacket
+
+        # Convert string data to bytes if needed
+        if isinstance(data, str):
+            data_bytes = data.encode("utf-8")
+        elif isinstance(data, bytes) or isinstance(data, bytearray):
+            data_bytes = data
+        else:
+            raise ValueError(f"Unsupported data type: {type(data)}")
 
         # Create data packet
         packet = TCPPacket(
@@ -226,11 +265,11 @@ class TCPSession:
             seq_num=self.seq_num,
             ack_num=self.next_seq,
             flags=TCPPacket.PSH | TCPPacket.ACK,
-            data=data,
+            data=data_bytes,
         )
 
         # Update sequence number
-        self.seq_num += len(data)
+        self.seq_num += len(data_bytes)
 
         return packet
 
