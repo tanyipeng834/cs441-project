@@ -174,15 +174,13 @@ class RouterNode(Node):
             
 
         if self.router.ipsec:
-            if not isinstance(ip_packet,IPPacket):
-                try:
-                    ip_packet = IPPacket.decode(ip_packet)
-                except Exception as e:
-                    pass
-                
-            if not isinstance(ip_packet, IPPacket):
+            
+           
+            if  isinstance(ip_packet, IPSecPacket):
                 # This means that this is a ipsec packet.
-                ipSecPacket = IPSecPacket.decode(ip_packet)
+                
+                ipSecPacket = ip_packet
+                print(ipSecPacket)
 
                 mac = self.router.compute_mac(ipSecPacket.ip_packet)
               
@@ -227,9 +225,12 @@ class RouterNode(Node):
                 if self.router:
 
                     if not self.router.ipsec:
-
+                        if ip_packet.data[-1] ==49:
+                            mode =1
+                        else:
+                            mode = 0
                         self.router.mutual_key_exchange(
-                            int(ip_packet.data[-1]), ip_packet.source_ip
+                            mode, ip_packet.source_ip
                         )
 
                     else:
@@ -292,16 +293,17 @@ class RouterNode(Node):
             f"Interface {self.mac_address} sending IP packet from 0x{ip_packet.source_ip:02X} to 0x{ip_packet.dest_ip:02X}"
         )
         print(f"  Destination MAC: {dest_mac}")
-        print(f"Sending IP Packet with node: {ip_packet.node}")
+        
 
         packet_data = ip_packet.encode()
-        print(packet_data)
+        
         
         # Encrypt when it is from different network
         if self.router.ipsec and ((self.ip_address & 0xF0) >> 4) != (
             (ip_packet.dest_ip & 0xF0) >> 4
-        ):
-            if self.router.ipsec_mode == 1:
+        ):  
+            
+            if self.router.ipsec_mode == 1 :
                 # Change this to the encrypted packet if it is ESP
                 packet_data = self.router.encrypt_data(packet_data)
                 print("Encrypting IP Packet")
@@ -352,11 +354,16 @@ class RouterNode(Node):
             else:
                 # Try to parse as IP packet
                 
-                try:
-                    ip_packet = IPPacket.decode(data)
-                    self.process_ip_packet(ip_packet)
-                except Exception:
-                    self.process_ip_packet(data)
+                if  data[0] == 0xA0:
+                    print("IPSec packet detected")
+                    self.process_ip_packet(IPSecPacket.decode(data))  # Process as IPSec packet
+                else:
+                    # Otherwise, treat it as a regular IP packet
+                    try:
+                        ip_packet = IPPacket.decode(data)
+                        self.process_ip_packet(ip_packet)  # Process as regular IP packet
+                    except Exception:
+                        print("Invalid IP packet data")
         else:
             print(
                 f"Node {self.mac_address} dropped frame from {source_mac} intended for {destination_mac}"

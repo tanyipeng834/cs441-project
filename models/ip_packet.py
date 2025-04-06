@@ -107,7 +107,7 @@ class IPPacket:
 
             if len(packet_bytes) < 4 + data_length:
                 raise ValueError(
-                    f"Packet truncated: expected {data_length} bytes of data, got {len(packet_bytes) - 4}"
+                    
                 )
 
             # Extract data
@@ -120,7 +120,7 @@ class IPPacket:
             node = None
             if len(packet_bytes) > 4 + data_length:
                 node = packet_bytes[4 + data_length :]
-                print(f"[DEBUG] IP_DECODE: node data present, length={len(node)}")
+                
 
             # Create the IP packet
             packet = IPPacket(source_ip, dest_ip, protocol, data, node)
@@ -144,4 +144,8 @@ class IPPacket:
         elif isinstance(self.data, bytes) or isinstance(self.data, bytearray):
             data_len = len(self.data)
 
-        return f"IP[src=0x{self.source_ip:02X}, dst=0x{self.dest_ip:02X}, proto={self.protocol},data={self.data}, node={hex(ord(self.node))}]"
+        return_string= f"IP[src=0x{self.source_ip:02X}, dst=0x{self.dest_ip:02X}, proto={self.protocol}, data={self.data}"
+        if self.node is not None:
+            return_string+= f", node={hex(ord(self.node))}"
+        return return_string
+
