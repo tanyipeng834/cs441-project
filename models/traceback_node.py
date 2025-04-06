@@ -13,6 +13,7 @@ class TracebackNode(Node):
         self.queue = queue.Queue(maxsize=100) 
         self.nodes ={}
         self.register_traceback_commands()
+        self.labelled_packets =0
         
 
     def process_ip_packet(self, ip_packet: IPPacket):
@@ -24,9 +25,12 @@ class TracebackNode(Node):
             
             print(f"  Protocol: {ip_packet.protocol}, Data length: {ip_packet.length}")
             
+            
             if ip_packet.node is not None:
               
-                ip_packet.node = int(ip_packet.node)
+                ip_packet.node = hex(ord(ip_packet.node))
+                self.labelled_packets+=1
+                
                 
                 if ip_packet.node not in self.nodes:
                     self.nodes[ip_packet.node] =1
@@ -87,11 +91,16 @@ class TracebackNode(Node):
         traceback_path = []
 
         print("Performing IP Traceback...")
+        threshold = self.labelled_packets /2** len(self.nodes)
 
         # Build the path from the sorted nodes
         for node, count in sorted_nodes:
-            print(f"Node {hex(node)} encountered {count} times.")
-            traceback_path.append(hex(node))
+            print(f"Node {node} encountered {count} times.")
+            if count > threshold:
+                traceback_path.append(node)
+            else:
+                print("This node is not in the attack vector")
+
 
         # Create a string representation of the path with "->" arrows
         traceback_string = " -> ".join(traceback_path)
@@ -121,7 +130,7 @@ class TracebackNode(Node):
                 )
 
                 # Check if it's an ARP packet (starts with 'ARP')
-                if data.startswith("ARP"):
+                if data.startswith(b"ARP"):
                     try:
                         arp_packet = ARPPacket.decode(data)
                         print(f"  Received ARP packet: {arp_packet}")
