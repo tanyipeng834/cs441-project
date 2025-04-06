@@ -106,6 +106,7 @@ if __name__ == "__main__":
                         print(" Network not available")
                     else:
                         ip_packet = IPPacket(source_ip, dest_ip, 17, f"IKE{mode}")
+                        
                         r7_node.send_ip_packet(ip_packet, r7_node.arp_table[dest_ip])
                         router.mutual_key_exchange(int(mode), dest_ip)
 

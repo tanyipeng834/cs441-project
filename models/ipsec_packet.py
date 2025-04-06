@@ -14,12 +14,10 @@ class IPSecPacket:
         encoded_data = bytes([self.source_ip, self.dest_ip, self.mode])
 
         # If mode is 1 (ESP mode), ip_packet is already bytes, otherwise, we need to convert it to bytes
-        if self.mode == 1:
+       
             # In ESP mode, ip_packet is already in bytes
-            encoded_data += self.ip_packet
-        else:
-            #
-            encoded_data += self.ip_packet.encode("utf-8")
+        encoded_data += self.ip_packet
+ 
         # Now, add the MAC (always in bytes)
         encoded_data += self.mac
 

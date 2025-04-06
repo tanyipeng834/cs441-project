@@ -372,13 +372,17 @@ class Node:
             print(f"  Protocol: {ip_packet.protocol}, Data length: {ip_packet.length}")
 
             # Check for node field from the original implementation
+            print(ip_packet)
             if ip_packet.node is not None:
+                
                 if isinstance(ip_packet.node, bytes):
                     try:
                         ip_packet.node = int(ip_packet.node.decode("utf-8"))
                     except ValueError:
                         ip_packet.node = int.from_bytes(ip_packet.node, byteorder="big")
-                print(f"  Node Sampled: 0x{ip_packet.node:02X}")
+                
+                print(f"  Node Sampled: {hex(ip_packet.node)}")
+                
 
             # Handle different protocols
             if ip_packet.protocol == PingProtocol.PROTOCOL:

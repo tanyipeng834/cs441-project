@@ -99,7 +99,7 @@ class Router:
         if not self.cipher:
             raise ValueError("AES key has not been established.")
 
-        plaintext = text.encode("utf-8")
+        plaintext = text
 
         padding_length = 16 - (len(plaintext) % 16)
         plaintext_padded = plaintext + bytes([padding_length] * padding_length)
@@ -167,8 +167,19 @@ class RouterNode(Node):
 
     def process_ip_packet(self, ip_packet):
         """Process an IP packet received on this interface"""
+        # differenitate between ip_pacet and ipsec packet
+        
+        
+        
+            
 
         if self.router.ipsec:
+            if not isinstance(ip_packet,IPPacket):
+                try:
+                    ip_packet = IPPacket.decode(ip_packet)
+                except Exception as e:
+                    pass
+                
             if not isinstance(ip_packet, IPPacket):
                 # This means that this is a ipsec packet.
                 ipSecPacket = IPSecPacket.decode(ip_packet)
@@ -195,16 +206,24 @@ class RouterNode(Node):
                     print(ip_packet)
 
         # If ipsec is not enabled, it means the packet would be an ip packet.
-        print(
-            f"Interface {self.mac_address} received IP packet from 0x{ip_packet.source_ip:02X} to 0x{ip_packet.dest_ip:02X}"
-        )
-        print(f"  Protocol: {ip_packet.protocol}, Data: {ip_packet.data}")
+        if isinstance(ip_packet.source_ip,bytes) and isinstance(ip_packet.dest_ip,bytes):
+            source_ip = ip_packet.source_ip.decode("utf-8")
+            dest_ip = ip_packet.dest_ip.decode("utf-8")
+            print(
+                f"Interface {self.mac_address} received IP packet from 0x{source_ip:02X} to 0x{dest_ip:02X}"
+            )
+
+        
+        else:
+        
+            print(
+                f"Interface {self.mac_address} received IP packet from 0x{ip_packet.source_ip:02X} to 0x{ip_packet.dest_ip:02X}"
+            )
 
         if ip_packet.dest_ip == self.ip_address:
             
             print(f"  Packet is for this interface {self.mac_address}")
-            if ip_packet.data.startswith("IKE"):
-
+            if isinstance(ip_packet.data, bytes) and ip_packet.data.startswith(b"IKE"):
                 if self.router:
 
                     if not self.router.ipsec:
@@ -215,7 +234,8 @@ class RouterNode(Node):
 
                     else:
                         self.router.kill_tunnel()
-                return
+                        return
+            
         elif ip_packet.dest_ip == 0xFF:
             print(f"  Broadcast packet received on interface {self.mac_address}")
 
@@ -231,8 +251,11 @@ class RouterNode(Node):
             x = random.random()  # Random number between 0 and 1
             
             # add the ip address for node sampling
+            
             if x < p:
                 ip_packet.node = self.ip_address 
+                print("Node has been added to ip packet")
+                
                 
             if self.router:
                 # Find outgoing interface from router's routing table
@@ -256,7 +279,7 @@ class RouterNode(Node):
                                 f"  ERROR: No ARP entry for 0x{ip_packet.dest_ip:02X} on interface {outgoing_interface.mac_address}"
                             )
                     else:
-                        # Instance of bgp node so will send this to bgp node to process
+                        
                         outgoing_interface.process_ip_packet(ip_packet)
                 else:
                     print(f"  ERROR: No route to 0x{ip_packet.dest_ip:02X}")
@@ -269,8 +292,11 @@ class RouterNode(Node):
             f"Interface {self.mac_address} sending IP packet from 0x{ip_packet.source_ip:02X} to 0x{ip_packet.dest_ip:02X}"
         )
         print(f"  Destination MAC: {dest_mac}")
+        print(f"Sending IP Packet with node: {ip_packet.node}")
 
         packet_data = ip_packet.encode()
+        print(packet_data)
+        
         # Encrypt when it is from different network
         if self.router.ipsec and ((self.ip_address & 0xF0) >> 4) != (
             (ip_packet.dest_ip & 0xF0) >> 4
@@ -304,11 +330,12 @@ class RouterNode(Node):
 
             destination_mac = frame[2:4].decode("utf-8")
 
-            if self.router.ipsec:
+            if not isinstance(bytes,frame[5:]):
                 data = frame[5:]
             else:
-                # Data is not encrypted.
+               
                 data = frame[5:].decode("utf-8")
+            print(data)
 
         if destination_mac == self.mac_address or destination_mac == "FF":
             print(f"Node {self.mac_address} received Ethernet frame from {source_mac}")
@@ -324,14 +351,12 @@ class RouterNode(Node):
                     print(f"  Error decoding ARP packet: {e}")
             else:
                 # Try to parse as IP packet
+                
                 try:
-                    # For router nodes, don't simulate processing time
-                    
                     ip_packet = IPPacket.decode(data)
                     self.process_ip_packet(ip_packet)
                 except Exception:
                     self.process_ip_packet(data)
-
         else:
             print(
                 f"Node {self.mac_address} dropped frame from {source_mac} intended for {destination_mac}"

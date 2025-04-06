@@ -31,6 +31,7 @@ class IPPacket:
         # Prepare data
         data_bytes = bytearray()
         if self.data:
+            
             if isinstance(self.data, str):
                 data_bytes = self.data.encode("utf-8")
             elif isinstance(self.data, bytes) or isinstance(self.data, bytearray):
@@ -39,43 +40,31 @@ class IPPacket:
             #     print(f"[DEBUG] IP_ENCODE: Unknown data type: {type(self.data)}")
 
         # Add data length
+        
         result.append(len(data_bytes) & 0xFF)
-        # print(f"[DEBUG] IP_ENCODE: data length byte: {len(data_bytes):02X}")
+       
 
         # Add header bytes in hex for debugging
         header_hex = " ".join([f"{b:02X}" for b in result])
         # print(f"[DEBUG] IP_ENCODE: header bytes in hex: {header_hex}")
-
-        # Add data
         result.extend(data_bytes)
-
         # Add node information if present
         if self.node is not None:
-            if isinstance(self.node, str):
-                result.extend(self.node.encode("utf-8"))
+           
+            if isinstance(self.node, int):
+        # Convert the integer to a single byte (8 bits)
+                result.extend(bytes([self.node & 0xFF]))  # Mask to keep only the lower 8 bits
             elif isinstance(self.node, bytes) or isinstance(self.node, bytearray):
+                
                 result.extend(self.node)
+                
+        
+           
             # else:
             #     print(f"[DEBUG] IP_ENCODE: Unknown node type: {type(self.node)}")
+        
 
         packet_bytes = bytes(result)
-
-        # print(
-        #     f"[DEBUG] IP_ENCODE: data_type={type(data_bytes)}, data_len={len(data_bytes)}"
-        # )
-        # if len(data_bytes) > 0:
-        #     print(
-        #         f"[DEBUG] IP_ENCODE: first few data bytes: {' '.join([f'{b:02X}' for b in data_bytes[:min(10, len(data_bytes))]])}"
-        #     )
-
-        # print(
-        #     f"[DEBUG] IP_ENCODE: final packet_type={type(packet_bytes)}, packet_length={len(packet_bytes)}"
-        # )
-        # print(
-        #     f"[DEBUG] IP_ENCODE: first few packet bytes: {' '.join([f'{b:02X}' for b in packet_bytes[:min(15, len(packet_bytes))]])}"
-        # )
-        # print(f"[DEBUG] IP_ENCODE: END")
-
         return packet_bytes
 
     @staticmethod
@@ -96,7 +85,7 @@ class IPPacket:
                 packet_bytes = bytes(packet_bytes)
             else:
                 packet_bytes = packet_data
-
+            
             # print(
             #     f"[DEBUG] IP_DECODE: packet_bytes: {' '.join([f'{b:02X}' for b in packet_bytes[:min(15, len(packet_bytes))]])}"
             # )
@@ -131,7 +120,7 @@ class IPPacket:
             node = None
             if len(packet_bytes) > 4 + data_length:
                 node = packet_bytes[4 + data_length :]
-                # print(f"[DEBUG] IP_DECODE: node data present, length={len(node)}")
+                print(f"[DEBUG] IP_DECODE: node data present, length={len(node)}")
 
             # Create the IP packet
             packet = IPPacket(source_ip, dest_ip, protocol, data, node)
@@ -155,4 +144,4 @@ class IPPacket:
         elif isinstance(self.data, bytes) or isinstance(self.data, bytearray):
             data_len = len(self.data)
 
-        return f"IP[src=0x{self.source_ip:02X}, dst=0x{self.dest_ip:02X}, proto={self.protocol}, data_len={data_len}, node={self.node}]"
+        return f"IP[src=0x{self.source_ip:02X}, dst=0x{self.dest_ip:02X}, proto={self.protocol},data={self.data}, node={hex(ord(self.node))}]"
