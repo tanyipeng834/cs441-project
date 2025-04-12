@@ -8,9 +8,7 @@ if __name__ == "__main__":
     node = Node("NA", 0x5A, 50010, R5_NETWORK, default_gateway="R5")
 
     # Initialize ARP table - Node1 only knows about itself and R1 in its network
-    node.init_arp_table(
-        R5_ARP_TABLE
-    )  # Self  # Router interface R1
+    node.init_arp_table(R5_ARP_TABLE)  # Self  # Router interface R1
 
     atexit.register(node.shutdown)
 

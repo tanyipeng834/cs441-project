@@ -2,7 +2,14 @@ import sys
 import atexit
 from models.router import Router, RouterNode
 from models.ip_packet import IPPacket
-from utils.routing import R1_ARP_TABLE, R1_NETWORK,R2_ARP_TABLE,R2_NETWORK,R3_NETWORK,R3_ARP_TABLE
+from utils.routing import (
+    R1_ARP_TABLE,
+    R1_NETWORK,
+    R2_ARP_TABLE,
+    R2_NETWORK,
+    R3_NETWORK,
+    R3_ARP_TABLE,
+)
 
 
 if __name__ == "__main__":
@@ -19,43 +26,39 @@ if __name__ == "__main__":
     router = Router([r1_node, r2_node, r3_node])
 
     # Initialize network IPs for node R1
-    r1_node.init_network_ips([0x1A,0x1B,0x1C,0x1D,0x1E,0x1F])  # N1's IP is 0x1A
+    r1_node.init_network_ips([0x1A, 0x1B, 0x1C, 0x1D, 0x1E, 0x1F])  # N1's IP is 0x1A
     # Initialize ARP table for node R1
     r1_node.init_arp_table(R1_ARP_TABLE)
 
     # Initialize network IPs for node R2
-    r2_node.init_network_ips([0x2A, 0x2B,0x2C])  # N2 and N3's IPs
+    r2_node.init_network_ips([0x2A, 0x2B, 0x2C])  # N2 and N3's IPs
     # Initialize ARP table for node R2
-    r2_node.init_arp_table(
-       R2_ARP_TABLE
-    )
+    r2_node.init_arp_table(R2_ARP_TABLE)
     r3_node.init_network_ips([0x41])
 
-    # ROUTE to all other 
+    # ROUTE to all other
 
-    r3_node.init_arp_table(
-        R3_ARP_TABLE
-        )  # Self-reference
+    r3_node.init_arp_table(R3_ARP_TABLE)  # Self-reference
 
     # Initialize routing table
     router.init_routing_table(
         {
             0x1A: r1_node,
-            0x1B : r1_node,
-            0x1C : r1_node,
-            0x1D : r1_node,
-            0x1E : r1_node,
-            0x1F : r1_node,
-            0x2A: r2_node,  
+            0x1B: r1_node,
+            0x1C: r1_node,
+            0x1D: r1_node,
+            0x1E: r1_node,
+            0x1F: r1_node,
+            0x2A: r2_node,
             0x2B: r2_node,
-            0x2C : r2_node,
+            0x2C: r2_node,
             0x41: r3_node,
             0x5A: r3_node,
-            0x51 :r3_node,
-            0x61 :r3_node,
-            0x71 : r3_node,
-            0X81 : r3_node,
-            0x8A : r3_node,
+            0x51: r3_node,
+            0x61: r3_node,
+            0x71: r3_node,
+            0x81: r3_node,
+            0x8A: r3_node,
         }
     )
 
@@ -115,9 +118,9 @@ if __name__ == "__main__":
                         print(" Network not available")
                     else:
                         ip_packet = IPPacket(source_ip, dest_ip, 17, f"IKE{mode}")
-                        
+
                         r3_node.send_ip_packet(ip_packet, r3_node.arp_table[dest_ip])
-                       
+
                         router.mutual_key_exchange(int(mode), dest_ip)
 
                 else:

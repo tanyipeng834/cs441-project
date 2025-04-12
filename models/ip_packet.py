@@ -31,7 +31,7 @@ class IPPacket:
         # Prepare data
         data_bytes = bytearray()
         if self.data:
-            
+
             if isinstance(self.data, str):
                 data_bytes = self.data.encode("utf-8")
             elif isinstance(self.data, bytes) or isinstance(self.data, bytearray):
@@ -40,9 +40,8 @@ class IPPacket:
             #     print(f"[DEBUG] IP_ENCODE: Unknown data type: {type(self.data)}")
 
         # Add data length
-        
+
         result.append(len(data_bytes) & 0xFF)
-       
 
         # Add header bytes in hex for debugging
         header_hex = " ".join([f"{b:02X}" for b in result])
@@ -50,19 +49,18 @@ class IPPacket:
         result.extend(data_bytes)
         # Add node information if present
         if self.node is not None:
-           
+
             if isinstance(self.node, int):
-        # Convert the integer to a single byte (8 bits)
-                result.extend(bytes([self.node & 0xFF]))  # Mask to keep only the lower 8 bits
+                # Convert the integer to a single byte (8 bits)
+                result.extend(
+                    bytes([self.node & 0xFF])
+                )  # Mask to keep only the lower 8 bits
             elif isinstance(self.node, bytes) or isinstance(self.node, bytearray):
-                
+
                 result.extend(self.node)
-                
-        
-           
+
             # else:
             #     print(f"[DEBUG] IP_ENCODE: Unknown node type: {type(self.node)}")
-        
 
         packet_bytes = bytes(result)
         return packet_bytes
@@ -85,7 +83,7 @@ class IPPacket:
                 packet_bytes = bytes(packet_bytes)
             else:
                 packet_bytes = packet_data
-            
+
             # print(
             #     f"[DEBUG] IP_DECODE: packet_bytes: {' '.join([f'{b:02X}' for b in packet_bytes[:min(15, len(packet_bytes))]])}"
             # )
@@ -106,9 +104,7 @@ class IPPacket:
             # )
 
             if len(packet_bytes) < 4 + data_length:
-                raise ValueError(
-                    
-                )
+                raise ValueError()
 
             # Extract data
             data = packet_bytes[4 : 4 + data_length]
@@ -120,7 +116,6 @@ class IPPacket:
             node = None
             if len(packet_bytes) > 4 + data_length:
                 node = packet_bytes[4 + data_length :]
-                
 
             # Create the IP packet
             packet = IPPacket(source_ip, dest_ip, protocol, data, node)
@@ -144,8 +139,7 @@ class IPPacket:
         elif isinstance(self.data, bytes) or isinstance(self.data, bytearray):
             data_len = len(self.data)
 
-        return_string= f"IP[src=0x{self.source_ip:02X}, dst=0x{self.dest_ip:02X}, proto={self.protocol}, data={self.data}"
+        return_string = f"IP[src=0x{self.source_ip:02X}, dst=0x{self.dest_ip:02X}, proto={self.protocol}, data={self.data}"
         if self.node is not None:
-            return_string+= f", node={hex(ord(self.node))}"
+            return_string += f", node={hex(ord(self.node))}"
         return return_string
-

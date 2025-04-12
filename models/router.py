@@ -132,9 +132,8 @@ class Router:
         # The AES key used for HMAC, we assume it's already derived
         key = self.aes_key
 
-    
         if isinstance(data, str):
-            data = data.encode('utf-8') 
+            data = data.encode("utf-8")
         mac = hmac.new(key, data, hashlib.sha256).digest()
 
         return mac
@@ -168,22 +167,17 @@ class RouterNode(Node):
     def process_ip_packet(self, ip_packet):
         """Process an IP packet received on this interface"""
         # differenitate between ip_pacet and ipsec packet
-        
-        
-        
-            
 
         if self.router.ipsec:
-            
-           
-            if  isinstance(ip_packet, IPSecPacket):
+
+            if isinstance(ip_packet, IPSecPacket):
                 # This means that this is a ipsec packet.
-                
+
                 ipSecPacket = ip_packet
                 print(ipSecPacket)
 
                 mac = self.router.compute_mac(ipSecPacket.ip_packet)
-              
+
                 if mac != ipSecPacket.mac:
                     print(
                         "Integrity Check Failed. MAC Computed does not match the one in the packet. Discarding IP Packet."
@@ -191,7 +185,7 @@ class RouterNode(Node):
                     return
                 print("Integrity Check passed ! MAC matches the one in the ip packet.")
                 if ipSecPacket.mode == 1:
-        
+
                     ip_packet = IPPacket.decode(
                         self.router.decrypt_data(ipSecPacket.ip_packet)
                     )
@@ -199,44 +193,43 @@ class RouterNode(Node):
                     print(ip_packet)
 
                 else:
-            
+
                     ip_packet = IPPacket.decode(ipSecPacket.ip_packet.decode("utf-8"))
                     print(ip_packet)
 
         # If ipsec is not enabled, it means the packet would be an ip packet.
-        if isinstance(ip_packet.source_ip,bytes) and isinstance(ip_packet.dest_ip,bytes):
+        if isinstance(ip_packet.source_ip, bytes) and isinstance(
+            ip_packet.dest_ip, bytes
+        ):
             source_ip = ip_packet.source_ip.decode("utf-8")
             dest_ip = ip_packet.dest_ip.decode("utf-8")
             print(
                 f"Interface {self.mac_address} received IP packet from 0x{source_ip:02X} to 0x{dest_ip:02X}"
             )
 
-        
         else:
-        
+
             print(
                 f"Interface {self.mac_address} received IP packet from 0x{ip_packet.source_ip:02X} to 0x{ip_packet.dest_ip:02X}"
             )
 
         if ip_packet.dest_ip == self.ip_address:
-            
+
             print(f"  Packet is for this interface {self.mac_address}")
             if isinstance(ip_packet.data, bytes) and ip_packet.data.startswith(b"IKE"):
                 if self.router:
 
                     if not self.router.ipsec:
-                        if ip_packet.data[-1] ==49:
-                            mode =1
+                        if ip_packet.data[-1] == 49:
+                            mode = 1
                         else:
                             mode = 0
-                        self.router.mutual_key_exchange(
-                            mode, ip_packet.source_ip
-                        )
+                        self.router.mutual_key_exchange(mode, ip_packet.source_ip)
 
                     else:
                         self.router.kill_tunnel()
                         return
-            
+
         elif ip_packet.dest_ip == 0xFF:
             print(f"  Broadcast packet received on interface {self.mac_address}")
 
@@ -250,14 +243,13 @@ class RouterNode(Node):
             # Otherwise let the router handle it
             p = 0.5  # Threshold for node sampling (could be set dynamically)
             x = random.random()  # Random number between 0 and 1
-            
+
             # add the ip address for node sampling
-            
+
             if x < p:
-                ip_packet.node = self.ip_address 
+                ip_packet.node = self.ip_address
                 print("Node has been added to ip packet")
-                
-                
+
             if self.router:
                 # Find outgoing interface from router's routing table
                 outgoing_interface = self.router.get_interface_for_ip(ip_packet.dest_ip)
@@ -280,7 +272,7 @@ class RouterNode(Node):
                                 f"  ERROR: No ARP entry for 0x{ip_packet.dest_ip:02X} on interface {outgoing_interface.mac_address}"
                             )
                     else:
-                        
+
                         outgoing_interface.process_ip_packet(ip_packet)
                 else:
                     print(f"  ERROR: No route to 0x{ip_packet.dest_ip:02X}")
@@ -293,17 +285,15 @@ class RouterNode(Node):
             f"Interface {self.mac_address} sending IP packet from 0x{ip_packet.source_ip:02X} to 0x{ip_packet.dest_ip:02X}"
         )
         print(f"  Destination MAC: {dest_mac}")
-        
 
         packet_data = ip_packet.encode()
-        
-        
+
         # Encrypt when it is from different network
         if self.router.ipsec and ((self.ip_address & 0xF0) >> 4) != (
             (ip_packet.dest_ip & 0xF0) >> 4
-        ):  
-            
-            if self.router.ipsec_mode == 1 :
+        ):
+
+            if self.router.ipsec_mode == 1:
                 # Change this to the encrypted packet if it is ESP
                 packet_data = self.router.encrypt_data(packet_data)
                 print("Encrypting IP Packet")
@@ -332,10 +322,10 @@ class RouterNode(Node):
 
             destination_mac = frame[2:4].decode("utf-8")
 
-            if not isinstance(bytes,frame[5:]):
+            if not isinstance(bytes, frame[5:]):
                 data = frame[5:]
             else:
-               
+
                 data = frame[5:].decode("utf-8")
             print(data)
 
@@ -353,20 +343,22 @@ class RouterNode(Node):
                     print(f"  Error decoding ARP packet: {e}")
             else:
                 # Try to parse as IP packet
-                
-                if  data[0] == 0xA0:
+
+                if data[0] == 0xA0:
                     print("IPSec packet detected")
-                    self.process_ip_packet(IPSecPacket.decode(data))  # Process as IPSec packet
+                    self.process_ip_packet(
+                        IPSecPacket.decode(data)
+                    )  # Process as IPSec packet
                 else:
                     # Otherwise, treat it as a regular IP packet
                     try:
                         ip_packet = IPPacket.decode(data)
-                        self.process_ip_packet(ip_packet)  # Process as regular IP packet
+                        self.process_ip_packet(
+                            ip_packet
+                        )  # Process as regular IP packet
                     except Exception:
                         print("Invalid IP packet data")
         else:
             print(
                 f"Node {self.mac_address} dropped frame from {source_mac} intended for {destination_mac}"
             )
-
-

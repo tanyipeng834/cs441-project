@@ -1,7 +1,7 @@
 import sys
 import atexit
 from models.arp_poisoning_node import ARPPoisoningNode
-from utils.routing import R2_ARP_TABLE,R2_NETWORK
+from utils.routing import R2_ARP_TABLE, R2_NETWORK
 
 
 if __name__ == "__main__":
@@ -10,8 +10,8 @@ if __name__ == "__main__":
 
     # Initialize ARP table - Node2 knows about itself, Node3, and R2 in its network
     node.init_arp_table(
-         # Self  # Node3  # Router interface R2
-         R2_ARP_TABLE
+        # Self  # Node3  # Router interface R2
+        R2_ARP_TABLE
     )
 
     atexit.register(node.shutdown)

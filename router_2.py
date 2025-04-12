@@ -2,7 +2,14 @@ import sys
 import atexit
 from models.router import Router, RouterNode
 from models.ip_packet import IPPacket
-from utils.routing import R4_ARP_TABLE, R4_NETWORK,R5_ARP_TABLE,R5_NETWORK,R6_NETWORK,R6_ARP_TABLE
+from utils.routing import (
+    R4_ARP_TABLE,
+    R4_NETWORK,
+    R5_ARP_TABLE,
+    R5_NETWORK,
+    R6_NETWORK,
+    R6_ARP_TABLE,
+)
 
 if __name__ == "__main__":
     # Create router with two nodes: R1 and R2
@@ -12,11 +19,11 @@ if __name__ == "__main__":
     # Create router nodes first
     r4_node = RouterNode("R4", 0x41, 50015, R4_NETWORK)
     r5_node = RouterNode("R5", 0x51, 50016, R5_NETWORK)
-    
+
     r6_node = RouterNode("R6", 0x61, 50017, R6_NETWORK)
 
     # Create router with the nodes
-    router = Router([r4_node, r5_node,r6_node])
+    router = Router([r4_node, r5_node, r6_node])
     r4_node.init_network_ips([0x31])
     r4_node.init_arp_table(R4_ARP_TABLE)
 
@@ -32,21 +39,22 @@ if __name__ == "__main__":
 
     # Initialize routing table
     router.init_routing_table(
-        {   0x11 : r4_node,
-            0x1A:  r4_node,
-            0x1B : r4_node,
-            0x1C : r4_node,
-            0x1D : r4_node,
-            0x1E : r4_node,
-            0x1F : r4_node,
-            0x21 : r4_node,
-            0x2A:  r4_node,  
-            0x2B:  r4_node,
-            0x2C : r4_node,
-            0x5A:  r5_node,
-            0x71 : r6_node,
-            0X81 : r6_node,
-            0x8A : r6_node,
+        {
+            0x11: r4_node,
+            0x1A: r4_node,
+            0x1B: r4_node,
+            0x1C: r4_node,
+            0x1D: r4_node,
+            0x1E: r4_node,
+            0x1F: r4_node,
+            0x21: r4_node,
+            0x2A: r4_node,
+            0x2B: r4_node,
+            0x2C: r4_node,
+            0x5A: r5_node,
+            0x71: r6_node,
+            0x81: r6_node,
+            0x8A: r6_node,
         }
     )
 

@@ -2,7 +2,7 @@ import sys
 import atexit
 from models.router import Router, RouterNode
 from models.ip_packet import IPPacket
-from utils.routing import R7_ARP_TABLE, R7_NETWORK,R8_ARP_TABLE,R8_NETWORK
+from utils.routing import R7_ARP_TABLE, R7_NETWORK, R8_ARP_TABLE, R8_NETWORK
 
 if __name__ == "__main__":
     # Create router with two nodes: R1 and R2
@@ -12,10 +12,9 @@ if __name__ == "__main__":
     # Create router nodes first
     r7_node = RouterNode("R7", 0x71, 50018, R7_NETWORK)
     r8_node = RouterNode("R8", 0x81, 50019, R8_NETWORK)
-    
 
     # Create router with the nodes
-    router = Router([r7_node,r8_node])
+    router = Router([r7_node, r8_node])
     r7_node.init_network_ips([0x61])
     r7_node.init_arp_table(R7_ARP_TABLE)
 
@@ -24,30 +23,26 @@ if __name__ == "__main__":
     # Initialize ARP table for node R1
     r8_node.init_arp_table(R8_ARP_TABLE)
 
-   
-
     # Initialize routing table
     router.init_routing_table(
         {
-            0x11 : r7_node,
-            0x1A:  r7_node,
-            0x1B : r7_node,
-            0x1C : r7_node,
-            0x1D : r7_node,
-            0x1E : r7_node,
-            0x1F : r7_node,
-            0x21 : r7_node,
-            0x2A:  r7_node,  
-            0x2B:  r7_node,
-            0x2C : r7_node,
-            0x31 : r7_node,
-            0x41 : r7_node,
-            0x51:  r7_node,
-            0x5A:  r7_node,
-            0x61:  r7_node,
-            0x8A : r8_node,
-
-
+            0x11: r7_node,
+            0x1A: r7_node,
+            0x1B: r7_node,
+            0x1C: r7_node,
+            0x1D: r7_node,
+            0x1E: r7_node,
+            0x1F: r7_node,
+            0x21: r7_node,
+            0x2A: r7_node,
+            0x2B: r7_node,
+            0x2C: r7_node,
+            0x31: r7_node,
+            0x41: r7_node,
+            0x51: r7_node,
+            0x5A: r7_node,
+            0x61: r7_node,
+            0x8A: r8_node,
         }
     )
 
@@ -106,7 +101,7 @@ if __name__ == "__main__":
                         print(" Network not available")
                     else:
                         ip_packet = IPPacket(source_ip, dest_ip, 17, f"IKE{mode}")
-                        
+
                         r7_node.send_ip_packet(ip_packet, r7_node.arp_table[dest_ip])
                         router.mutual_key_exchange(int(mode), dest_ip)
 
