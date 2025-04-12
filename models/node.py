@@ -21,9 +21,6 @@ class Node:
     BASE_PORT = 50000
     VALID_DESTINATION = ["N1", "N2", "N3", "R1", "R2"]
 
-    # Define TCP protocol number explicitly
-    TCP_PROTOCOL = 6
-
     def __init__(self, mac_address, ip_address, port, network, default_gateway=None):
         self.mac_address = mac_address
         self.ip_address = ip_address  # IP address in hex (e.g., 0x1A)
@@ -377,7 +374,7 @@ class Node:
             # Handle different protocols
             if ip_packet.protocol == PingProtocol.PROTOCOL:
                 self.handle_ping_protocol(ip_packet)
-            elif ip_packet.protocol == self.TCP_PROTOCOL:  # TCP protocol
+            elif ip_packet.protocol == TCPPacket.PROTOCOL:
                 try:
                     tcp_packet = TCPPacket.decode(ip_packet.data)
                     print(f"  Received TCP packet: {tcp_packet}")
@@ -504,7 +501,7 @@ class Node:
         tcp_data = tcp_packet.encode()
 
         # Send it in an IP packet
-        self.send_ip_packet(dest_ip, self.TCP_PROTOCOL, tcp_data)
+        self.send_ip_packet(dest_ip, TCPPacket.PROTOCOL, tcp_data)
 
     def process_tcp_packet(self, tcp_packet, source_ip):
         """Process a TCP packet and update the appropriate session"""
