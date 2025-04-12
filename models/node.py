@@ -303,16 +303,7 @@ class Node:
                 )
 
                 # Check if it's an ARP packet (starts with 'ARP')
-                if isinstance(data, bytes) and data.startswith(b"ARP"):
-                    try:
-                        # Convert bytes to string for ARP packet
-                        arp_data = data.decode("utf-8")
-                        arp_packet = ARPPacket.decode(arp_data)
-                        print(f"  Received ARP packet: {arp_packet}")
-                        self.process_arp_packet(arp_packet)
-                    except ValueError as e:
-                        print(f"  Error decoding ARP packet: {e}")
-                elif isinstance(data, str) and data.startswith("ARP"):
+                if data.startswith(b"ARP"):
                     try:
                         arp_packet = ARPPacket.decode(data)
                         print(f"  Received ARP packet: {arp_packet}")
@@ -325,8 +316,8 @@ class Node:
                         ip_packet = IPPacket.decode(data)
                         # Add IP packet to processing queue
                         self.add_ip_packet_to_queue(ip_packet)
-                    except Exception as e:
-                        print(f"  Failed to decode as IP packet: {e}")
+                    except Exception:
+                        # Assume it's just ethernet frame with raw data
                         print(f"  Data: {data}")
 
             else:

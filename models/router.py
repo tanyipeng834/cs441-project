@@ -1,6 +1,4 @@
 from .node import Node
-import socket
-from .ethernet_frame import EthernetFrame
 from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
 from cryptography.hazmat.backends import default_backend
@@ -8,7 +6,6 @@ from .ipsec_packet import IPSecPacket
 from .ip_packet import IPPacket
 import hmac
 import hashlib
-import traceback
 from .arp_packet import ARPPacket
 import random
 

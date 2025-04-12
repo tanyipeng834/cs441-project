@@ -2,7 +2,6 @@ import queue
 from models.node import Node
 from models.arp_packet import ARPPacket
 from models.ip_packet import IPPacket
-from models.ping_protocol import PingProtocol
 
 
 class ARPPoisoningNode(Node):
@@ -56,14 +55,13 @@ class ARPPoisoningNode(Node):
             if source_mac in self.poison_table:
                 # source mac is poisoned by us, handle it differently
                 print(
-                    f"Node {self.mac_address} received Ethernet frame from {source_mac}"
+                    f"Node {self.mac_address} received Ethernet frame from poisoned {source_mac}"
                 )
                 # Try to parse as IP packet
                 try:
                     ip_packet = IPPacket.decode(data)
-                    self.process_ip_packet(ip_packet, source_mac)
-                except Exception as e:
-                    print(f"  Failed to decode IP packet: {e}")
+                    self.process_spoofed_packet(ip_packet, source_mac)
+                except Exception:
                     if isinstance(data, bytes):
                         print(
                             f"  Data (bytes): {' '.join([f'{b:02X}' for b in data[:min(20, len(data))]])}"
@@ -98,7 +96,7 @@ class ARPPoisoningNode(Node):
                     try:
                         ip_packet = IPPacket.decode(data)
                         # Use base class method to process IP packet
-                        super().process_ip_packet(ip_packet)
+                        super().add_ip_packet_to_queue(ip_packet)
                     except Exception as e:
                         print(f"  Failed to decode IP packet: {e}")
                         if isinstance(data, bytes):
@@ -119,23 +117,25 @@ class ARPPoisoningNode(Node):
 
             traceback.print_exc()
 
-    def add_ip_packet_to_queue(self, ip_packet: IPPacket, source_mac):
-        """Add an IP packet to the processing queue"""
-        # Check if this packet is for our spoofed IP
-        if ip_packet.dest_ip == self.poison_table[source_mac]:
-            print(
-                f"  Added IP packet from Spoofed 0x{ip_packet.source_ip:02X} to 0x{ip_packet.dest_ip:02X} to queue"
-            )
+    def process_spoofed_packet(self, ip_packet: IPPacket, source_mac):
+        # Check for node field from the original implementation
+        if ip_packet.node is not None:
 
-            try:
-                self.queue.put_nowait(ip_packet)
-                current_size = self.queue.qsize()
-                print(f"Queue size: {current_size}/{self.queue.maxsize}")
-            except queue.Full:
-                print(
-                    f"  Queue full, dropping IP packet from 0x{ip_packet.source_ip:02X}"
-                )
-                self.packets_dropped += 1
+            if isinstance(ip_packet.node, bytes):
+                try:
+                    ip_packet.node = int(ip_packet.node.decode("utf-8"))
+                except ValueError:
+                    ip_packet.node = int.from_bytes(ip_packet.node, byteorder="big")
+
+            print(f"  Node Sampled: {hex(ip_packet.node)}")
+
+        # Print the IP packet details
+        print(f"  Intercepted IP Packet: {ip_packet}")
+
+        # Forward the packet to the original destination
+        # Find the original destination IP address
+        destination_ip = self.poison_table[source_mac]
+        self.send_ip_packet(destination_ip, ip_packet.protocol, ip_packet.encode())
 
     def register_poisoning_commands(self):
         @self.command(
