@@ -76,81 +76,76 @@ class SniffingNode(Node):
                 }
 
                 # Try to decode as IP packet for more detailed info
-                if len(data) >= 4 and data[3] == len(data[4:]):
-                    try:
-                        ip_packet = IPPacket.decode(data)
-                        sniffed_info["protocol"] = ip_packet.protocol
-                        sniffed_info["source_ip"] = f"0x{ip_packet.source_ip:02X}"
-                        sniffed_info["dest_ip"] = f"0x{ip_packet.dest_ip:02X}"
+                try:
+                    ip_packet = IPPacket.decode(data)
+                    sniffed_info["protocol"] = ip_packet.protocol
+                    sniffed_info["source_ip"] = f"0x{ip_packet.source_ip:02X}"
+                    sniffed_info["dest_ip"] = f"0x{ip_packet.dest_ip:02X}"
 
-                        # Try to decode as ping if applicable
-                        if ip_packet.protocol == PingProtocol.PROTOCOL:
-                            try:
-                                ping_packet = PingProtocol.decode(ip_packet.data)
-                                sniffed_info["ping_type"] = ping_packet.ping_type
-                                sniffed_info["ping_code"] = ping_packet.code
-                                sniffed_info["ping_data"] = ping_packet.data
-                            except:
-                                sniffed_info["ping_decode_error"] = True
+                    # Try to decode as ping if applicable
+                    if ip_packet.protocol == PingProtocol.PROTOCOL:
+                        try:
+                            ping_packet = PingProtocol.decode(ip_packet.data)
+                            sniffed_info["ping_type"] = ping_packet.ping_type
+                            sniffed_info["ping_code"] = ping_packet.code
+                            sniffed_info["ping_data"] = ping_packet.data
+                        except:
+                            sniffed_info["ping_decode_error"] = True
 
-                        # Try to decode as TCP if applicable
-                        elif ip_packet.protocol == 6:  # TCP protocol
-                            try:
-                                tcp_packet = TCPPacket.decode(ip_packet.data)
-                                sniffed_info["tcp_src_port"] = tcp_packet.src_port
-                                sniffed_info["tcp_dst_port"] = tcp_packet.dst_port
+                    # Try to decode as TCP if applicable
+                    elif ip_packet.protocol == 6:  # TCP protocol
+                        try:
+                            tcp_packet = TCPPacket.decode(ip_packet.data)
+                            sniffed_info["tcp_src_port"] = tcp_packet.src_port
+                            sniffed_info["tcp_dst_port"] = tcp_packet.dst_port
 
-                                # Add TCP flags information
-                                flags = []
-                                if tcp_packet.is_syn():
-                                    flags.append("SYN")
-                                if tcp_packet.is_ack():
-                                    flags.append("ACK")
-                                if tcp_packet.is_fin():
-                                    flags.append("FIN")
-                                if tcp_packet.is_rst():
-                                    flags.append("RST")
-                                if tcp_packet.is_psh():
-                                    flags.append("PSH")
-                                sniffed_info["tcp_flags"] = (
-                                    "|".join(flags) if flags else "NONE"
-                                )
+                            # Add TCP flags information
+                            flags = []
+                            if tcp_packet.is_syn():
+                                flags.append("SYN")
+                            if tcp_packet.is_ack():
+                                flags.append("ACK")
+                            if tcp_packet.is_fin():
+                                flags.append("FIN")
+                            if tcp_packet.is_rst():
+                                flags.append("RST")
+                            if tcp_packet.is_psh():
+                                flags.append("PSH")
+                            sniffed_info["tcp_flags"] = (
+                                "|".join(flags) if flags else "NONE"
+                            )
 
-                                # If there's data, try to decode it
-                                if tcp_packet.data:
-                                    try:
-                                        if isinstance(tcp_packet.data, bytes):
-                                            sniffed_info["tcp_data"] = (
-                                                tcp_packet.data.decode("utf-8")
-                                            )
-                                        else:
-                                            sniffed_info["tcp_data"] = str(
-                                                tcp_packet.data
-                                            )
-                                    except:
+                            # If there's data, try to decode it
+                            if tcp_packet.data:
+                                try:
+                                    if isinstance(tcp_packet.data, bytes):
                                         sniffed_info["tcp_data"] = (
-                                            f"<binary data of {len(tcp_packet.data)} bytes>"
+                                            tcp_packet.data.decode("utf-8")
                                         )
-
-                                # If we have auto_track_sessions method (from TCP Hijacking Node), call it
-                                if (
-                                    hasattr(self, "auto_track_tcp_packet")
-                                    and hasattr(self, "auto_track_sessions")
-                                    and self.auto_track_sessions
-                                ):
-                                    print(
-                                        f"Attempting to track TCP packet: {ip_packet.source_ip:02X}:{tcp_packet.src_port} -> {ip_packet.dest_ip:02X}:{tcp_packet.dst_port}"
+                                    else:
+                                        sniffed_info["tcp_data"] = str(tcp_packet.data)
+                                except:
+                                    sniffed_info["tcp_data"] = (
+                                        f"<binary data of {len(tcp_packet.data)} bytes>"
                                     )
-                                    self.auto_track_tcp_packet(ip_packet, tcp_packet)
 
-                            except Exception as e:
-                                sniffed_info["tcp_decode_error"] = str(e)
-                    except:
-                        # If not an IP packet, just store the raw data
-                        pass
-                else:
-                    # If not an IP packet, just store the raw data
+                            # If we have auto_track_sessions method (from TCP Hijacking Node), call it
+                            if (
+                                hasattr(self, "auto_track_tcp_packet")
+                                and hasattr(self, "auto_track_sessions")
+                                and self.auto_track_sessions
+                            ):
+                                print(
+                                    f"Attempting to track TCP packet: {ip_packet.source_ip:02X}:{tcp_packet.src_port} -> {ip_packet.dest_ip:02X}:{tcp_packet.dst_port}"
+                                )
+                                self.auto_track_tcp_packet(ip_packet, tcp_packet)
+
+                        except Exception as e:
+                            sniffed_info["tcp_decode_error"] = str(e)
+                except:
                     sniffed_info["raw_text"] = data.decode("utf-8")
+                    # If not an IP packet, just store the raw data
+                    pass
 
                 self.sniffed_packets.append(sniffed_info)
                 print(f"SNIFFED: Frame from {source_mac} to {destination_mac}")

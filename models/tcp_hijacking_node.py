@@ -381,21 +381,18 @@ class TCPHijackingNode(SniffingNode):
             # Decode the frame
             source_mac, destination_mac, _, data = self.decode_frame(frame)
 
-            # Try to decode as IP packet
-            if len(data) >= 4 and data[3] == len(data[4:]):
-                try:
-                    ip_packet = IPPacket.decode(data)
+            try:
+                ip_packet = IPPacket.decode(data)
 
-                    # Check if this is TCP traffic (protocol 6)
-                    if ip_packet.protocol == TCPPacket.PROTOCOL:
-                        # Decode the TCP packet
-                        tcp_packet = TCPPacket.decode(ip_packet.data)
+                # Check if this is TCP traffic (protocol 6)
+                if ip_packet.protocol == TCPPacket.PROTOCOL:
+                    # Decode the TCP packet
+                    tcp_packet = TCPPacket.decode(ip_packet.data)
 
-                        # Process the TCP packet for auto-tracking
-                        self.auto_track_tcp_packet(ip_packet, tcp_packet)
-                except Exception as e:
-                    # Not a valid IP or TCP packet - ignore
-                    pass
+                    # Process the TCP packet for auto-tracking
+                    self.auto_track_tcp_packet(ip_packet, tcp_packet)
+            except Exception as e:
+                pass
 
         except Exception as e:
             print(f"Error processing frame for TCP tracking: {e}")

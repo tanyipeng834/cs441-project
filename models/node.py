@@ -313,7 +313,7 @@ class Node:
                         self.add_ip_packet_to_queue(ip_packet)
                     except Exception:
                         print(
-                            f"  Raw Ethernet data: {data.decode('utf-8', errors='replace')}"
+                            f"  Raw Ethernet data: {data.decode()}"
                         )
             else:
                 print(
