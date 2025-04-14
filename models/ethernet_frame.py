@@ -7,10 +7,6 @@ class EthernetFrame:
 
     def encode(self):
         """Convert Ethernet frame to binary representation"""
-        # print(
-        #     f"[DEBUG] ETHERNET_ENCODE: START - source={self.source}, destination={self.destination}, data_length={self.length}"
-        # )
-        # print(f"[DEBUG] ETHERNET_ENCODE: data_type={type(self.data)}")
 
         # Create a bytearray for the frame
         result = bytearray()
@@ -23,37 +19,19 @@ class EthernetFrame:
         data_bytes = bytearray()
         if self.data:
             if isinstance(self.data, str):
-                # print(f"[DEBUG] ETHERNET_ENCODE: data is string, converting to bytes")
                 data_bytes = self.data.encode("utf-8")
             elif isinstance(self.data, bytes) or isinstance(self.data, bytearray):
-                # print(f"[DEBUG] ETHERNET_ENCODE: data is already bytes")
                 data_bytes = self.data
-            # else:
-            #     print(f"[DEBUG] ETHERNET_ENCODE: Unknown data type: {type(self.data)}")
+            else:
+                print(f"[DEBUG] ETHERNET_ENCODE: Unknown data type: {type(self.data)}")
 
         # Add length byte
         result.append(len(data_bytes) & 0xFF)
-        # print(f"[DEBUG] ETHERNET_ENCODE: data length byte: {len(data_bytes):02X}")
 
         # Add data
         result.extend(data_bytes)
 
         frame_bytes = bytes(result)
-
-        # print(
-        #     f"[DEBUG] ETHERNET_ENCODE: header_length=5, data_length={len(data_bytes)}"
-        # )
-        # print(
-        #     f"[DEBUG] ETHERNET_ENCODE: header bytes: {' '.join([f'{b:02X}' for b in frame_bytes[:5]])}"
-        # )
-        # if len(data_bytes) > 0:
-        #     print(
-        #         f"[DEBUG] ETHERNET_ENCODE: first few data bytes: {' '.join([f'{b:02X}' for b in data_bytes[:min(10, len(data_bytes))]])}"
-        #     )
-        # print(
-        #     f"[DEBUG] ETHERNET_ENCODE: final frame_type={type(frame_bytes)}, frame_length={len(frame_bytes)}"
-        # )
-        # print(f"[DEBUG] ETHERNET_ENCODE: END")
 
         return frame_bytes
 
@@ -61,23 +39,14 @@ class EthernetFrame:
     def decode(frame):
         """Decode binary representation back to Ethernet frame"""
         try:
-            # print(
-            #     f"[DEBUG] ETHERNET_DECODE: START - frame_type={type(frame)}, frame_length={len(frame)}"
-            # )
-
             # Make sure we're working with bytes
             if isinstance(frame, str):
-                # print(f"[DEBUG] ETHERNET_DECODE: Converting string to bytes")
                 frame_bytes = bytearray()
                 for c in frame:
                     frame_bytes.append(ord(c))
                 frame_bytes = bytes(frame_bytes)
             else:
                 frame_bytes = frame
-
-            # print(
-            #     f"[DEBUG] ETHERNET_DECODE: frame_bytes: {' '.join([f'{b:02X}' for b in frame_bytes[:min(15, len(frame_bytes))]])}"
-            # )
 
             if len(frame_bytes) < 5:
                 raise ValueError(
@@ -89,28 +58,15 @@ class EthernetFrame:
             destination = frame_bytes[2:4].decode("utf-8")
             data_length = frame_bytes[4]
 
-            # print(
-            #     f"[DEBUG] ETHERNET_DECODE: source={source}, destination={destination}, data_length={data_length}"
-            # )
-
-            # if len(frame_bytes) < 5 + data_length:
-            #     print(
-            #         f"[DEBUG] ETHERNET_DECODE: Frame truncated: expected {5 + data_length} bytes, got {len(frame_bytes)}"
-            #     )
-
             # Extract data
             data = (
                 frame_bytes[5 : 5 + data_length]
                 if len(frame_bytes) >= 5 + data_length
                 else frame_bytes[5:]
             )
-            # print(
-            #     f"[DEBUG] ETHERNET_DECODE: data length={len(data)}, first few bytes: {' '.join([f'{b:02X}' for b in data[:min(10, len(data))]])}"
-            # )
 
             # Create the Ethernet frame
             eth_frame = EthernetFrame(source, destination, data)
-            # print(f"[DEBUG] ETHERNET_DECODE: END")
 
             return eth_frame
 

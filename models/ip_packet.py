@@ -69,10 +69,6 @@ class IPPacket:
     def decode(packet_data):
         """Decode binary representation back to IP packet"""
         try:
-            # print(f"[DEBUG] IP_DECODE: START")
-            # print(
-            #     f"[DEBUG] IP_DECODE: data_type={type(packet_data)}, length={len(packet_data)}"
-            # )
 
             # Make sure we're working with bytes
             if isinstance(packet_data, str):
@@ -83,10 +79,6 @@ class IPPacket:
                 packet_bytes = bytes(packet_bytes)
             else:
                 packet_bytes = packet_data
-
-            # print(
-            #     f"[DEBUG] IP_DECODE: packet_bytes: {' '.join([f'{b:02X}' for b in packet_bytes[:min(15, len(packet_bytes))]])}"
-            # )
 
             if len(packet_bytes) < 4:
                 raise ValueError(
@@ -99,18 +91,11 @@ class IPPacket:
             protocol = packet_bytes[2]
             data_length = packet_bytes[3]
 
-            # print(
-            #     f"[DEBUG] IP_DECODE: header values - source_ip=0x{source_ip:02X}, dest_ip=0x{dest_ip:02X}, protocol={protocol}, data_length={data_length}"
-            # )
-
             if len(packet_bytes) < 4 + data_length:
                 raise ValueError()
 
             # Extract data
             data = packet_bytes[4 : 4 + data_length]
-            # print(
-            #     f"[DEBUG] IP_DECODE: data length={len(data)}, first few bytes: {' '.join([f'{b:02X}' for b in data[:min(10, len(data))]])}"
-            # )
 
             # Check for node data
             node = None
@@ -119,8 +104,6 @@ class IPPacket:
 
             # Create the IP packet
             packet = IPPacket(source_ip, dest_ip, protocol, data, node)
-            # print(f"[DEBUG] IP_DECODE: Created packet: {packet}")
-            # print(f"[DEBUG] IP_DECODE: END")
 
             return packet
 

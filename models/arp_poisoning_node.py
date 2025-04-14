@@ -148,20 +148,24 @@ class ARPPoisoningNode(Node):
                     except ValueError as e:
                         print(f"  Error decoding ARP packet: {e}")
                 else:
-                    # Try to parse as IP packet
-                    try:
-                        ip_packet = IPPacket.decode(data)
-                        # Use base class method to process IP packet
-                        super().add_ip_packet_to_queue(ip_packet)
-                    except Exception as e:
-                        print(f"  Failed to decode IP packet: {e}")
-                        if isinstance(data, bytes):
-                            print(
-                                f"  Data (bytes): {' '.join([f'{b:02X}' for b in data[:min(20, len(data))]])}"
-                            )
-                        else:
-                            print(f"  Data: {data}")
-
+                    # Check if it looks like a valid IP packet
+                    if len(data) >= 4 and data[3] == len(data[4:]):
+                        try:
+                            ip_packet = IPPacket.decode(data)
+                            # Use base class method to process IP packet
+                            super().add_ip_packet_to_queue(ip_packet)
+                        except Exception as e:
+                            print(f"  Failed to decode IP packet: {e}")
+                            if isinstance(data, bytes):
+                                print(
+                                    f"  Data (bytes): {' '.join([f'{b:02X}' for b in data[:min(20, len(data))]])}"
+                                )
+                            else:
+                                print(f"  Data: {data}")
+                    else:
+                        print(
+                            f"  Raw Ethernet data: {data.decode('utf-8', errors='replace')}"
+                        )
             else:
                 print(
                     f"Node {self.mac_address} dropped frame from {source_mac} intended for {destination_mac}"
