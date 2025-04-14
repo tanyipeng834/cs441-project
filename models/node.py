@@ -308,18 +308,10 @@ class Node:
                     except ValueError as e:
                         print(f"  Error decoding ARP packet: {e}")
                 else:
-                    # Check if it looks like a valid IP packet
-                    if len(data) >= 4 and data[3] == len(data[4:]):
-                        try:
-                            ip_packet = IPPacket.decode(data)
-                            self.add_ip_packet_to_queue(ip_packet)
-                        except Exception:
-                            print(
-                                f"  [WARN] Failed IP decode despite header match. Data: {data}"
-                            )
-
-                    # Attempt to decode as raw data
-                    else:
+                    try:
+                        ip_packet = IPPacket.decode(data)
+                        self.add_ip_packet_to_queue(ip_packet)
+                    except Exception:
                         print(
                             f"  Raw Ethernet data: {data.decode('utf-8', errors='replace')}"
                         )
