@@ -108,10 +108,6 @@ class IPPacket:
             return packet
 
         except Exception as e:
-            print(f"[ERROR] IP_DECODE_ERROR: {e}")
-            import traceback
-
-            traceback.print_exc()
             raise ValueError(f"Error while decoding packet: {str(e)}")
 
     def __str__(self):
