@@ -336,11 +336,6 @@ class TCPHijackingNode(SniffingNode):
                 print(f"Removing hijacked session #{session_id}")
                 del self.tracked_sessions[session_id]
 
-                # Suggest cleaning up ARP poisoning
-                print("\nDon't forget to clean up any ARP poisoning if needed.")
-                if hasattr(self, "poison_table") and self.poison_table:
-                    print("Use 'poisoned' to see active ARP poisoning entries.")
-
             except ValueError as e:
                 print(f"Error: {e}")
 
@@ -583,7 +578,9 @@ class TCPHijackingNode(SniffingNode):
             print(
                 f"Sending targeted RST to disconnect real client at 0x{source_ip:02X}..."
             )
-            self.send_reset_packet(target_ip, dst_port, source_ip, src_port, ack_num)
+            self.send_reset_packet(
+                target_ip, dst_port, source_ip, src_port, session.dst_seq
+            )
         else:
             # Direction: server -> client (impersonating server)
             src_port = session.dst_port
@@ -595,7 +592,12 @@ class TCPHijackingNode(SniffingNode):
             print(
                 f"Sending targeted RST to disconnect real server at 0x{source_ip:02X}..."
             )
-            self.send_reset_packet(target_ip, dst_port, source_ip, src_port, ack_num)
+            self.send_reset_packet(
+                target_ip, dst_port, source_ip, src_port, session.src_seq
+            )
+
+        # Add a small delay to ensure the RST packet is processed
+        time.sleep(0.5)
 
         # Now send spoofed data
         print(f"Sending spoofed message to 0x{target_ip:02X} as 0x{source_ip:02X}...")
@@ -701,7 +703,7 @@ class TCPHijackingNode(SniffingNode):
             src_port: Source port
             dst_ip: Destination IP - the node we want to disconnect
             dst_port: Destination port
-            seq_num: Sequence number for the RST packet
+            seq_num: Sequence number for the RST packet - use expected sequence number
         """
         # Get the MAC address of ONLY the target we want to disconnect
         target_mac = None
@@ -759,11 +761,6 @@ class TCPHijackingNode(SniffingNode):
             target_ip: IP address of the target node to poison (hex value)
             spoofed_ip: IP address to spoof (hex value) - our MAC will be associated with this IP
         """
-        # Check if we already have this method (might be inherited)
-        if hasattr(self, "poison_table"):
-            # We likely inherited from ARPPoisoningNode, use that implementation
-            super().poison_arp(target_ip, spoofed_ip)
-            return
 
         # We need to find the MAC address of the target node
         target_mac = None
@@ -860,26 +857,55 @@ class TCPHijackingNode(SniffingNode):
 
     # 2. Add a helper method to send TCP ACKs for received data
     def send_tcp_ack(self, dest_ip, tcp_packet, source_ip):
-        """Send an ACK for TCP data"""
-        from models.tcp_packet import TCPPacket
+        """Send an ACK for TCP data with proper sequence numbers"""
 
-        # Calculate next sequence number
-        next_seq = (
-            tcp_packet.seq_num + len(tcp_packet.data)
-            if tcp_packet.data
-            else tcp_packet.seq_num + 1
-        )
+        # Calculate next sequence number based on data length
+        data_len = len(tcp_packet.data) if tcp_packet.data else 0
+        next_seq = tcp_packet.seq_num + data_len
+        if (
+            tcp_packet.is_syn() or tcp_packet.is_fin()
+        ):  # SYN and FIN consume a sequence number
+            next_seq += 1
+
+        # Find the session to get the correct sequence number for our ACK
+        our_seq = 0
+        for session_id, session in self.tracked_sessions.items():
+            if (session.src_ip == dest_ip and session.dst_ip == source_ip) or (
+                session.dst_ip == dest_ip and session.src_ip == source_ip
+            ):
+                # Use the sequence number from our side of the connection
+                if source_ip == session.src_ip:
+                    our_seq = session.src_seq
+                else:
+                    our_seq = session.dst_seq
+                break
 
         # Create ACK packet
         ack_packet = TCPPacket(
             src_port=tcp_packet.dest_port,
             dest_port=tcp_packet.src_port,
-            seq_num=tcp_packet.ack_num,
-            ack_num=next_seq,
+            seq_num=our_seq,  # Our current sequence number
+            ack_num=next_seq,  # What we've received from them plus data length
             flags=TCPPacket.ACK,
             data="",
         )
 
-        # Send it
-        print(f"  Sending ACK for received data in hijacked session")
-        self.send_tcp_packet(dest_ip, ack_packet)
+        # Encode and send
+        print(
+            f"  Sending ACK for received data in hijacked session (SEQ={our_seq}, ACK={next_seq})"
+        )
+
+        # Create IP packet
+        ip_packet = IPPacket(
+            source_ip=source_ip,
+            dest_ip=dest_ip,
+            protocol=TCPPacket.PROTOCOL,
+            data=ack_packet.encode(),
+        )
+
+        # Get MAC and send
+        dest_mac = self.get_mac_for_ip(dest_ip)
+        if dest_mac:
+            self.send_frame(dest_mac, ip_packet.encode())
+        else:
+            print(f"No route to host 0x{dest_ip:02X}")
