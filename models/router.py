@@ -342,7 +342,6 @@ class RouterNode(Node):
                 # Try to parse as IP packet
 
                 if data[0] == 0xA0:
-                    print("IPSec packet detected")
                     self.process_ip_packet(
                         IPSecPacket.decode(data)
                     )  # Process as IPSec packet

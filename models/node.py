@@ -140,6 +140,8 @@ class Node:
         for i in range(0, len(data_bytes), Node.MAX_DATA_LENGTH):
             chunk = data_bytes[i : i + Node.MAX_DATA_LENGTH]
             frames.append(chunk)
+        
+        print(frames)
 
         # Send each frame to all nodes in the network
         for frame_data in frames:
