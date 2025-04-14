@@ -12,6 +12,7 @@ class FirewallNode(Node):
     def __init__(self, mac_address, ip_address, port, network, default_gateway=None):
         super().__init__(mac_address, ip_address, port, network, default_gateway)
         self.dropped_ips = set()
+        self.dropped_packets = []
 
         # Register additional commands
         self.register_firewall_commands()
@@ -32,6 +33,7 @@ class FirewallNode(Node):
         """Override the process_ip_packet method to filter packets"""
 
         if ip_packet.source_ip in self.dropped_ips:
+            self.dropped_packets.append(ip_packet)
             print(f"  Dropped IP packet from IP 0x{ip_packet.source_ip:02X}")
 
         elif ip_packet.dest_ip == self.ip_address or ip_packet.dest_ip == 0xFF:
@@ -61,10 +63,22 @@ class FirewallNode(Node):
     def register_firewall_commands(self):
         """Register firewall commands"""
 
-        @self.command("drop", "<ip> - Drop all packets from an IP address")
+        @self.command("drop", "<ip>/show/table - Drop all packets from an IP address")
         def cmd_drop(self: FirewallNode, args):
             if not args:
-                print("Invalid input. Usage: drop <ip>")
+                print("Invalid input. Usage: drop <ip>/table/show")
+                return
+
+            if args[0] == "table":
+                print("Dropped IP addresses:")
+                for ip in self.dropped_ips:
+                    print(f"  0x{ip:02X}")
+                return
+
+            if args[0] == "show":
+                print("Dropped Packets:")
+                for packet in self.dropped_packets:
+                    print(f"  {packet}")
                 return
 
             ip = int(args[0], 16)
@@ -80,9 +94,3 @@ class FirewallNode(Node):
             ip = int(args[0], 16)
             self.accept_ip(ip)
             print(f"IP address 0x{ip:02X} accepted.")
-
-        @self.command("showtable", "- Show the list of dropped IP addresses")
-        def cmd_showtable(self: FirewallNode, args):
-            print("Dropped IP addresses:")
-            for ip in self.dropped_ips:
-                print(f"  0x{ip:02X}")
