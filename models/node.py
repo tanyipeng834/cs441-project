@@ -294,11 +294,14 @@ class Node:
     def process_frame(self, frame):
         """Process a received Ethernet frame"""
         try:
-            source_mac, destination_mac, _, data = self.decode_frame(frame)
+            source_mac, destination_mac, data_length, data = self.decode_frame(frame)
 
             if destination_mac == self.mac_address or destination_mac == "FF":
                 print(
                     f"Node {self.mac_address} received Ethernet frame from {source_mac}"
+                )
+                print(
+                    f"  Ethernet Header: [src={source_mac}, dst={destination_mac}, length={data_length}]"
                 )
 
                 # Check if it's an ARP packet (starts with 'ARP')
@@ -314,12 +317,13 @@ class Node:
                         ip_packet = IPPacket.decode(data)
                         self.add_ip_packet_to_queue(ip_packet)
                     except Exception:
-                        print(
-                            f"  Raw Ethernet data: {data.decode()}"
-                        )
+                        print(f"  Raw Ethernet data: {data.decode()}")
             else:
                 print(
                     f"Node {self.mac_address} dropped frame from {source_mac} intended for {destination_mac}"
+                )
+                print(
+                    f"  Ethernet Header: [src={source_mac}, dst={destination_mac}, length={data_length}]"
                 )
 
         except Exception as e:

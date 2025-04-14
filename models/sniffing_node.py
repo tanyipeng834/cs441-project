@@ -149,6 +149,9 @@ class SniffingNode(Node):
 
                 self.sniffed_packets.append(sniffed_info)
                 print(f"SNIFFED: Frame from {source_mac} to {destination_mac}")
+                print(
+                    f"  Ethernet Header: [src={source_mac}, dst={destination_mac}, length={data_length}]"
+                )
 
         # Process the frame as normal
         super().process_frame(frame)

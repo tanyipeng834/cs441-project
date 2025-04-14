@@ -310,7 +310,7 @@ class RouterNode(Node):
     def process_frame(self, frame):
         """Process a received Ethernet frame"""
 
-        source_mac, destination_mac, _, data = self.decode_frame(frame)
+        source_mac, destination_mac, data_length, data = self.decode_frame(frame)
         if isinstance(source_mac, bytes):
 
             source_mac = frame[0:2].decode("utf-8")
@@ -357,4 +357,7 @@ class RouterNode(Node):
         else:
             print(
                 f"Node {self.mac_address} dropped frame from {source_mac} intended for {destination_mac}"
+            )
+            print(
+                f"  Ethernet Header: [src={source_mac}, dst={destination_mac}, length={data_length}]"
             )
