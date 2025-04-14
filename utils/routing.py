@@ -16,7 +16,7 @@ R2_ARP_TABLE = {
     0x2A: "N2",
     0x2B: "N3",
     0x21: "R2",
-    0x2C: "R9",
+    0x2C: "N9",
 }
 
 R3_NETWORK = ["R3", "R4"]
