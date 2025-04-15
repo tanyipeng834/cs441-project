@@ -359,8 +359,7 @@ class RouterNode(Node):
                         )  # Process as regular IP packet
                     except Exception as e:
                         print("Error processing IP packet:")
-                        import traceback
-                        traceback.print_exc()
+                        
         else:
             print(
                 f"Node {self.mac_address} dropped frame from {source_mac} intended for {destination_mac}"

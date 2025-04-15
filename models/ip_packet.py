@@ -90,6 +90,15 @@ class IPPacket:
             dest_ip = packet_bytes[1]
             protocol = packet_bytes[2]
             data_length = packet_bytes[3]
+            
+
+            if not (protocol ==0 or protocol ==1 or protocol ==6 or protocol ==17):
+                
+                raise ValueError(f"Protocol is not defined in this range")
+
+
+
+
 
             if len(packet_bytes) < 4 + data_length:
                 raise ValueError(f"packet bytes is {len(packet_bytes)} and {data_length}")

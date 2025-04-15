@@ -172,9 +172,9 @@ class Node:
         # Create the IP packet
         # Max data size per IP packet
         # Split data into chunks if it's larger than MAX_DATA_SIZE
-        print("sending ip packet")
+        
         MAX_DATA_SIZE = Node.MAX_APPLICATION_DATA_LENGTH - 4
-        print(MAX_DATA_SIZE)
+        
         chunks = [
             data[i : i + MAX_DATA_SIZE] for i in range(0, len(data), MAX_DATA_SIZE)
         ]
@@ -320,7 +320,8 @@ class Node:
                     try:
                         ip_packet = IPPacket.decode(data)
                         
-                        self.add_ip_packet_to_queue(data)
+                        
+                        self.add_ip_packet_to_queue(ip_packet)
                         
                         
                     except Exception:
@@ -364,6 +365,8 @@ class Node:
 
     def process_ip_packet(self, ip_packet: IPPacket):
         """Process a received IP packet"""
+        if isinstance(ip_packet,bytes):
+            ip_packet = IPPacket.decode(ip_packet)
         if ip_packet.dest_ip == self.ip_address or ip_packet.dest_ip == 0xFF:
             print(
                 f"  Received IP packet from 0x{ip_packet.source_ip:02X} to 0x{ip_packet.dest_ip:02X}"
@@ -395,7 +398,7 @@ class Node:
                     print(f"  TCP data: {ip_packet.data}")
             else:
                 print(
-                    f"  Unknown protocol: {ip_packet.protocol}, Data: {ip_packet.data}"
+                    f"  Protocol: {ip_packet.protocol}, Data: {ip_packet.data}"
                 )
         else:
             

@@ -31,6 +31,7 @@ class FirewallNode(Node):
 
     def process_ip_packet(self, ip_packet: IPPacket):
         """Override the process_ip_packet method to filter packets"""
+      
 
         if ip_packet.source_ip in self.dropped_ips:
             self.dropped_packets.append(ip_packet)
