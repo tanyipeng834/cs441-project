@@ -92,7 +92,7 @@ class IPPacket:
             data_length = packet_bytes[3]
 
             if len(packet_bytes) < 4 + data_length:
-                raise ValueError()
+                raise ValueError(f"packet bytes is {len(packet_bytes)} and {data_length}")
 
             # Extract data
             data = packet_bytes[4 : 4 + data_length]

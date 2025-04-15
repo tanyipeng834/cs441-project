@@ -23,7 +23,7 @@ class SpoofingNode(Node):
         # Create the IP packet
         # Max data size per IP packet
         # Split data into chunks if it's larger than MAX_DATA_SIZE
-        MAX_DATA_SIZE = Node.MAX_DATA_LENGTH - 4
+        MAX_DATA_SIZE = Node.MAX_APPLICATION_DATA_LENGTH - 4
         chunks = [
             data[i : i + MAX_DATA_SIZE] for i in range(0, len(data), MAX_DATA_SIZE)
         ]

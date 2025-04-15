@@ -309,8 +309,10 @@ class RouterNode(Node):
 
     def process_frame(self, frame):
         """Process a received Ethernet frame"""
+        
 
         source_mac, destination_mac, data_length, data = self.decode_frame(frame)
+        
         if isinstance(source_mac, bytes):
 
             source_mac = frame[0:2].decode("utf-8")
@@ -324,7 +326,7 @@ class RouterNode(Node):
             else:
 
                 data = frame[5:].decode("utf-8")
-            print(data)
+           
 
         if destination_mac == self.mac_address or destination_mac == "FF":
             print(f"Node {self.mac_address} received Ethernet frame from {source_mac}")
@@ -348,12 +350,17 @@ class RouterNode(Node):
                 else:
                     # Otherwise, treat it as a regular IP packet
                     try:
+                        
                         ip_packet = IPPacket.decode(data)
+                        print(ip_packet)
+                        
                         self.process_ip_packet(
                             ip_packet
                         )  # Process as regular IP packet
-                    except Exception:
-                        print("Invalid IP packet data")
+                    except Exception as e:
+                        print("Error processing IP packet:")
+                        import traceback
+                        traceback.print_exc()
         else:
             print(
                 f"Node {self.mac_address} dropped frame from {source_mac} intended for {destination_mac}"

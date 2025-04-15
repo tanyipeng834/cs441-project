@@ -17,6 +17,7 @@ from .tcp_session import TCPSession
 
 class Node:
     MAX_DATA_LENGTH = 256
+    MAX_APPLICATION_DATA_LENGTH=240
     HOST_IP = "127.0.0.1"
     BASE_PORT = 50000
     VALID_DESTINATION = ["N1", "N2", "N3", "R1", "R2"]
@@ -137,11 +138,11 @@ class Node:
         # Calculate maximum data length and split into chunks if needed
         frames = []
 
-        for i in range(0, len(data_bytes), Node.MAX_DATA_LENGTH):
-            chunk = data_bytes[i : i + Node.MAX_DATA_LENGTH]
+        for i in range(0, len(data_bytes), Node.MAX_APPLICATION_DATA_LENGTH):
+            chunk = data_bytes[i : i + Node.MAX_APPLICATION_DATA_LENGTH]
             frames.append(chunk)
         
-        print(frames)
+       
 
         # Send each frame to all nodes in the network
         for frame_data in frames:
@@ -171,7 +172,9 @@ class Node:
         # Create the IP packet
         # Max data size per IP packet
         # Split data into chunks if it's larger than MAX_DATA_SIZE
-        MAX_DATA_SIZE = Node.MAX_DATA_LENGTH - 4
+        print("sending ip packet")
+        MAX_DATA_SIZE = Node.MAX_APPLICATION_DATA_LENGTH - 4
+        print(MAX_DATA_SIZE)
         chunks = [
             data[i : i + MAX_DATA_SIZE] for i in range(0, len(data), MAX_DATA_SIZE)
         ]
@@ -180,6 +183,7 @@ class Node:
             # Create the IP packet for the chunk
             ip_packet = IPPacket(self.ip_address, destination_ip, protocol, chunk)
             packet_data = ip_packet.encode()
+            print(IPPacket.decode(packet_data))
 
             # Determine the MAC address to send to (either direct or via gateway)
             destination_mac = self.get_mac_for_ip(destination_ip)
@@ -315,7 +319,13 @@ class Node:
                 else:
                     try:
                         ip_packet = IPPacket.decode(data)
-                        self.add_ip_packet_to_queue(ip_packet)
+                        
+                        if ip_packet.dest_ip != self.ip_address:
+                            raise ValueError()
+                        else:
+                        
+                            self.add_ip_packet_to_queue(ip_packet)
+                        
                     except Exception:
                         print(f"  Raw Ethernet data: {data.decode()}")
             else:
@@ -364,7 +374,7 @@ class Node:
             print(f"  Protocol: {ip_packet.protocol}, Data length: {ip_packet.length}")
 
             # Check for node field from the original implementation
-            print(ip_packet)
+            
             if ip_packet.node is not None:
 
                 if isinstance(ip_packet.node, bytes):
@@ -391,6 +401,7 @@ class Node:
                     f"  Unknown protocol: {ip_packet.protocol}, Data: {ip_packet.data}"
                 )
         else:
+            
             print(f"  Dropped IP packet intended for 0x{ip_packet.dest_ip:02X}")
 
     def handle_ping_protocol(self, ip_packet: IPPacket):
