@@ -320,8 +320,7 @@ class Node:
                     try:
                         ip_packet = IPPacket.decode(data)
                         
-                        if ip_packet.dest_ip != self.ip_address:
-                            raise ValueError()
+                        self.add_ip_packet_to_queue(data)
                         else:
                         
                             self.add_ip_packet_to_queue(ip_packet)
