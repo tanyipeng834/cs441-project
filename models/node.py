@@ -321,9 +321,7 @@ class Node:
                         ip_packet = IPPacket.decode(data)
                         
                         self.add_ip_packet_to_queue(data)
-                        else:
                         
-                            self.add_ip_packet_to_queue(ip_packet)
                         
                     except Exception:
                         print(f"  Raw Ethernet data: {data.decode()}")
