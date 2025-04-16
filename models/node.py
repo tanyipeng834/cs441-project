@@ -135,10 +135,6 @@ class Node:
         else:
             data_bytes = data
 
-        # Ignore frames to self
-        if destination_mac == self.mac_address:
-            return
-
         # Calculate maximum data length and split into chunks if needed
         frames = []
 
@@ -148,19 +144,32 @@ class Node:
 
         # Send each frame to all nodes in the network
         for frame_data in frames:
-            for node_mac in self.network:
-                if node_mac != self.mac_address:  # Skip sending to itself
-                    destination_port = self.process_node_mac(node_mac)
-                    try:
-                        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
-                            frame = EthernetFrame(
-                                self.mac_address, destination_mac, frame_data
-                            )
-                            s.sendto(frame.encode(), (Node.HOST_IP, destination_port))
-                    except Exception as e:
-                        print(
-                            f"Error sending frame from {self.mac_address} to port {destination_port}: {e}"
+            if destination_mac == self.mac_address:
+                # Only send to self
+                try:
+                    with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
+                        frame = EthernetFrame(
+                            self.mac_address, destination_mac, frame_data
                         )
+                        s.sendto(frame.encode(), (Node.HOST_IP, self.port))
+                except Exception as e:
+                    print(
+                        f"Error sending frame from {self.mac_address} to itself: {e}"
+                    )
+            else:
+                for node_mac in self.network:
+                    if node_mac != self.mac_address:  # Skip sending to itself
+                        destination_port = self.process_node_mac(node_mac)
+                        try:
+                            with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
+                                frame = EthernetFrame(
+                                    self.mac_address, destination_mac, frame_data
+                                )
+                                s.sendto(frame.encode(), (Node.HOST_IP, destination_port))
+                        except Exception as e:
+                            print(
+                                f"Error sending frame from {self.mac_address} to port {destination_port}: {e}"
+                            )
 
     def send_ip_packet(self, destination_ip, protocol, data):
         """
