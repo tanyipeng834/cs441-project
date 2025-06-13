@@ -21,7 +21,7 @@ This hands-on project required not only functional communication between devices
 We used **UDP sockets** to simulate Ethernet-level communication between devices:
 
 - Each node and router interface is represented as a **UDP socket** bound to a unique port.
-- Ethernet broadcast behavior is emulated by sending frames to **a port** (UDP would demutiplex based on IP + Port).
+- Ethernet broadcast behavior is emulated by sending frames to **a port** for all devices in the LAN. (UDP would demutiplex based on IP + Port).
 - Each Ethernet frame includes:
   - 2-byte **Source MAC** (e.g., "N1")
   - 2-byte **Destination MAC** (e.g., "R1")
@@ -30,7 +30,7 @@ We used **UDP sockets** to simulate Ethernet-level communication between devices
 
 Each node’s socket listens on its assigned port and drops frames not intended for it (based on destination MAC address), simulating Ethernet behavior.
 
-For Ethernet Frames, the frames would be broadcasted to all nodes in the same LAN.
+
 
 ## 🛡️ Security Features
 
